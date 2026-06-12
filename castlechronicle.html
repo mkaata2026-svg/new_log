@@ -430,6 +430,7 @@ let happyStreak = 0;              // 高幸福の連続日数 (人民の英雄�
 let miseryStreak = 0;             // 低幸福の連続日数 (暴君の最期用)
 let discoveries = {};             // roomId → 発見キー。✨の光る部屋を👆で調べると物語が始まる
 let inventory = {};               // 蒐集品 {itemKey:true}
+let sagas = {};                   // 年代記サーガの進行 {sagaId:{stage,nextDay,status,done,vars}}
 
 const isCreative = ()=>gameMode&&gameMode.kind==="creative";
 const isScenario = ()=>gameMode&&gameMode.kind==="scenario";
@@ -758,6 +759,8 @@ function dailyTick(){
   const pt=persType(), dm=diffMul();
   if(pt==="merchant")loreMul*=0.85;   // 商業王: 学芸は後回し
   if(inventory.falsebook)loreMul*=1.05; // 偽典『降臨の書』
+  if(inventory.rodmap)loreMul*=1.10;    // ロデリックの大陸図
+  if(inventory.rodmap&&seasonIdx()===2&&seasonDay()===1)res.fame=Math.min(9999,res.fame+4); // 図の名声
   let foodGain=0;
 
   for(const id in rooms){
@@ -856,9 +859,12 @@ function dailyTick(){
     for(let i=(flags.faithTier||0);i<ft;i++)toast(FAITH_TIERS[i].msg,"gold");
     flags.faithTier=ft;sndMystic();
   }
+  // ロデリックが地図庫の長に収まった後の、静かな実り (毎年わずかな名声)
+  if(flags.rodCartographer&&seasonIdx()===0&&seasonDay()===1)res.fame=Math.min(9999,res.fame+5);
   checkMilestones();
   checkEra();
   chainTick();
+  sagaTick();
   spawnDiscoveries();
   if(!maybeChoiceEvent())randomEvent(pop);
   checkRank(pop);
@@ -1492,6 +1498,178 @@ function showChainStage(id,st,def,ev){
   document.getElementById("chA").onclick=()=>pick(ev.a);
   document.getElementById("chB").onclick=()=>pick(ev.b);
 }
+
+/* ============================================================
+   年代記サーガ — プレイ全体に寄り添う「連載」の物語。
+   登場人物の運命が時間をかけて変わり、消息不明や帰還といった
+   起伏を経て、最後にプレイヤーの手で結末が選ばれる。
+   (連鎖イベント=短編に対し、サーガ=長編。心得に「現況」が常に映る)
+   ============================================================ */
+const SAGAS={
+  // 第一作: 探検家ロデリックの航海。派遣→報告→消息不明→帰還の人間ドラマ
+  horizon:{
+    name:"地平の彼方", ico:"🧭",
+    hero:{name:"ロデリック", role:"探検家", ico:"🧭"},
+    start:()=>rankIdx>=2&&day>SEASON_LEN,           // 男爵以降、ひと季節たって登場
+    stages:{
+      intro:{ status:"城門で謁見を待っている",
+        t:"隻眼の探検家、来訪", kind:"choice",
+        txt:"陽に灼けた隻眼の男が、丸めた海図を小脇に城門へ来た。<br>「ロデリックと申す。海の向こうには、まだ誰も名づけぬ岸がいくつもある。<br>貴公の旗のもとで、それを<b>年代記に書き加えたい</b>。船と、わずかな資金を頂けまいか」",
+        choices:[
+          {label:"船を出してやる（-300G）", to:"report1", gap:SEASON_LEN+2,
+           fx:()=>{res.gold-=300;wvShift({realism:+3});return "⛵ ロデリックは翡翠の海へ船出した。「吉報を待たれよ」";}},
+          {label:"今は余裕がないと断る", to:"end", endStatus:"別の領主のもとへ去った",
+           fx:()=>{persShift({greed:-3});return "🚪 男は静かに頷き、去った。「縁があれば、また」——海図の影だけが目に残った";}},
+        ]},
+      report1:{ status:"翡翠の沿岸を測量している",
+        t:"翡翠の沿岸より便り", kind:"choice",
+        txt:"半年ぶりに帰港したロデリックは、見たこともない香辛料と、几帳面な海図を携えていた。<br>「殿、この通り。だが本当の宝は、まだ<b>北の霧</b>の向こうにある。<br>船を一回り大きくできれば、そこまで届く」",
+        choices:[
+          {label:"もっと遠くへ（-200G）", to:"report2", gap:SEASON_LEN+2,
+           fx:()=>{res.gold-=200;res.lore+=route?6:0;res.fame=Math.min(9999,res.fame+8);
+             return "🗺 香辛料が高く売れ、名声+8"+(route?"・"+loreName()+"+6":"")+"。大船の帆が張られた";}},
+          {label:"無理はするな、と諭す", to:"report2", gap:SEASON_LEN+5,
+           fx:()=>{res.gold+=180;res.fame=Math.min(9999,res.fame+4);persShift({mercy:+3});
+             return "🤝 交易の利 +180G・名声+4。ロデリックは「ご温情に感謝を」と苦笑した";}},
+        ]},
+      report2:{ status:"霧の北端を目指して北上中",
+        t:"霧の北端へ", kind:"choice",
+        txt:"次の便りは、海の民の手を渡って届いた羊皮紙だった。<br>「<b>沈んだ尖塔の都</b>を見つけた。氷に半ば呑まれ、誰の言葉でもない碑文が立っている。<br>これを書き写せば、貴公の城は大陸一の<b>知の城</b>となろう。もう少し、北へ——」",
+        choices:[
+          {label:"碑文の写しを命じる", to:"silence", gap:SEASON_LEN*2,
+           fx:()=>{res.lore+=route?14:6;res.fame=Math.min(9999,res.fame+12);
+             return "📜 古代都市の知見が届いた。名声+12"+(route?"・"+loreName()+"+14":"・知見+6")+"。ロデリック船団は、さらに北へ消えていった";}},
+          {label:"危険だ、引き返せと急使を出す", to:"silence", gap:SEASON_LEN,
+           fx:()=>{res.fame=Math.min(9999,res.fame+6);
+             return "🕊 急使は北の海を追った。届いたかどうかは——分からない。名声+6";}},
+        ]},
+      silence:{ status:"⚠ 消息不明——便りが途絶えて久しい",
+        t:"還らぬ船", kind:"choice",
+        txt:"凍えた一人の水夫が、城門に倒れ込んだ。ロデリック船団の生き残りだった。<br>「氷山に……船は砕けました。船長は、最後の小舟に皆を乗せ、自分は氷原へ……『地図を、殿へ』と。<br>あれから、ひと月。船長の姿は、誰も……」<br><br>年代記の頁が、ここで途切れようとしている。",
+        choices:[
+          {label:"捜索隊を北へ送る（-500G）", to:"_rescue", gap:SEASON_LEN+3,
+           fx:()=>{res.gold-=500;return "⛵ 城の最も速い船が、氷の海へ舳先を向けた。「生きてさえいれば——」";}},
+          {label:"慰霊碑を建て、彼の名を刻む（-200G）", to:"memorial", gap:SEASON_LEN*2+2,
+           fx:()=>{res.gold-=200;res.fame=Math.min(9999,res.fame+10);allHomes(4);
+             return "🪦 港を見下ろす丘に碑が建った。領民は隻眼の探検家の物語を語り継ぐ。名声+10";}},
+          {label:"ただ、北の水平線を見つめて待つ", to:"memorial", gap:SEASON_LEN*3,
+           fx:()=>{persShift({mercy:+4});return "🌊 命じることは、もう何もない。城主はただ、毎朝、北の海を見るようになった";}},
+        ]},
+      // 分岐: 捜索隊の成否は治安/名声(=国力)で決まる。仮想ステージ _rescue で判定
+      _rescue:{ status:"捜索隊が氷海を探している", resolve:()=>(security()>=8||res.fame>=300)?"rescue_ok":"rescue_fail" },
+      rescue_ok:{ status:"救出され、療養している",
+        t:"氷原の灯", kind:"choice",
+        txt:"捜索隊は、流氷の上に小さな焚き火を見つけた。痩せ衰え、もう片方の目も傷めたロデリックが、それでも海図を胸に抱いて生きていた。<br>「……遅いぞ。だが、よく来てくれた」<br>担架の上で、彼は欠けた歯を見せて笑った。",
+        choices:[
+          {label:"英雄として迎える", to:"epilogue", gap:SEASON_LEN,
+           fx:()=>{res.fame=Math.min(9999,res.fame+25);allHomes(10);gainItem("rodmap");
+             return "🎉 帰還の宴は三日続いた。名声+25。『ロデリックの大陸図』が城の宝となった";}},
+        ]},
+      rescue_fail:{ status:"捜索は徒労に終わった……",
+        t:"空の海", kind:"choice",
+        txt:"捜索隊は、砕けた船の破片と、凍りついた手帳を持ち帰った。ロデリックの姿はなかった。<br>城に、重い沈黙が落ちる。手帳の最後の頁には、震える字でこう記されていた。<br>「<b>北へ。陸はある。私が、証だ</b>」",
+        choices:[
+          {label:"手帳の地図を引き継ぎ、彼の夢を続ける", to:"return_self", gap:SEASON_LEN*2+3,
+           fx:()=>{res.gold-=Math.min(res.gold,200);res.lore+=route?8:0;persShift({tradition:+4});
+             return "🧭 城の若者たちが、手帳の続きを描き始めた。物語は、まだ終わらない";}},
+        ]},
+      memorial:{ status:"慰霊碑に花が絶えない",
+        // 慰霊の数か月後、まさかの帰還へ橋渡し
+        t:"丘の上の碑", kind:"auto", to:"return_self", gap:SEASON_LEN+4,
+        txt:"慰霊碑の前で、子どもらが「隻眼の船長ごっこ」をして遊んでいる。海の物語は、もう城下の伝説だ。<br>——その丘の向こうから、一人の痩せた巡礼者が、杖をつきながら、ゆっくりと城へ近づいてくる。",
+        },
+      return_self:{ status:"⭐ 帰還——大陸を歩いて越えてきた",
+        t:"還ってきた者", kind:"choice",
+        txt:"門番が、信じられぬという顔で駆け込んできた。<br>「と、殿! 死んだはずの……ロデリックが、<b>陸を歩いて</b>、帰って参りました!」<br>ぼろを纏い、白髪になり、両目とも光を失った男が、それでも背筋を伸ばして立っていた。手には、海から陸から、大陸を丸ごと描き切った一枚の大地図。<br>「殿。約束の品を、お持ちしました」",
+        choices:[
+          {label:"その手を取り、ねぎらう", to:"epilogue", gap:SEASON_LEN,
+           fx:()=>{res.fame=Math.min(9999,res.fame+30);allHomes(14);gainItem("rodmap");
+             return "🤝 城じゅうが涙した。名声+30。『ロデリックの大陸図』は永遠に城の心臓に飾られた";}},
+        ]},
+      epilogue:{ status:"城の地図庫の主におさまった",
+        t:"地平のあとさき", kind:"choice",
+        txt:"傷を癒したロデリックが、城主の前に立っている。<br>「殿。この目はもう、海を見られませぬ。だが——」<br>彼は二つの道を口にした。ここに留まり、若き探検家を育てる地図庫の長となるか。あるいは最後にもう一度、誰かの船で、水平線の彼方へ消えるか。",
+        choices:[
+          {label:"城に留まってくれ", to:"end", endStatus:"地図庫の長として後進を育てている",
+           fx:()=>{flags.rodCartographer=true;res.fame=Math.min(9999,res.fame+10);
+             return "📚 ロデリックは城の地図庫の長となった。以後、毎年わずかな名声が城に積もる(名声+10)";}},
+          {label:"行きたい所へ行け", to:"end", endStatus:"再び、水平線の彼方へ旅立った",
+           fx:()=>{res.fame=Math.min(9999,res.fame+40);allHomes(8);
+             return "⛵ 老探検家は手を振り、霧の中へ。名声+40。彼の物語は、海の数だけ語り継がれるだろう";}},
+        ]},
+    }
+  },
+};
+function sagaHero(id){return SAGAS[id]&&SAGAS[id].hero;}
+function maybeStartSagas(){
+  for(const id in SAGAS){
+    if(sagas[id])continue;
+    let ok=false;try{ok=SAGAS[id].start();}catch(_){}
+    if(ok){
+      const intro=SAGAS[id].stages.intro;
+      sagas[id]={stage:"intro",nextDay:day+1,status:intro.status,done:false};
+    }
+  }
+}
+function sagaTick(){
+  if(modalOpen||day-lastEventDay<2)return;
+  maybeStartSagas();
+  for(const id in sagas){
+    const st=sagas[id];const def=SAGAS[id];
+    if(!def||st.done)continue;
+    let stage=def.stages[st.stage];
+    // 仮想ステージ(resolve)は即座に分岐先へ振り替える
+    while(stage&&stage.resolve){
+      st.stage=stage.resolve();st.status=def.stages[st.stage].status;stage=def.stages[st.stage];
+    }
+    if(stage&&st.nextDay<=day){
+      lastEventDay=day;
+      showSagaStage(id,st,def,stage);
+      return;
+    }
+  }
+}
+function advanceSaga(st,def,to,gap,endStatus){
+  if(to==="end"){st.done=true;st.status=endStatus||st.status;return;}
+  st.stage=to;st.nextDay=day+(gap||SEASON_LEN);
+  let nx=def.stages[to];
+  while(nx&&nx.resolve){to=nx.resolve();nx=def.stages[to];st.stage=to;}
+  st.status=nx?nx.status:st.status;
+}
+function showSagaStage(id,st,def,stage){
+  pauseForModal();
+  sndMystic();
+  const h=def.hero;
+  let btns,wire;
+  if(stage.kind==="auto"){
+    btns=`<button id="sgGo">つづきを読む</button>`;
+    wire=()=>{document.getElementById("sgGo").onclick=()=>{
+      closeScroll();advanceSaga(st,def,stage.to,stage.gap);
+      recomputeHappiness();updateHUD();saveGame();
+      if(SAGAS[id].stages[st.stage]) toast("🧭 ロデリックの物語は、まだ続く…");
+    };};
+  }else{
+    btns=stage.choices.map((c,i)=>`<button id="sg${i}"${i?' class="alt"':''}>${c.label}</button>`).join("");
+    wire=()=>stage.choices.forEach((c,i)=>{
+      document.getElementById("sg"+i).onclick=()=>{
+        const msg=c.fx?c.fx(st):"";
+        closeScroll();
+        advanceSaga(st,def,c.to,c.gap,c.endStatus);
+        if(msg)toast(msg);
+        recomputeHappiness();updateHUD();saveGame();
+      };
+    });
+  }
+  showScroll(`
+    <h2>${def.ico} ${def.name}</h2>
+    <div class="ev-speaker"><span style="font-size:20px">${h.ico}</span>
+      <span>年代記サーガ ／ <b>${h.name}</b>（${h.role}）の物語</span></div>
+    <div><b>${stage.t}</b><br>${stage.txt}</div>
+    <div class="choice-btns" style="${stage.choices&&stage.choices.length>2?'flex-direction:column':''}">${btns}</div>
+    <div class="center" style="margin-top:8px"><small>―― つづく ――</small></div>
+  `);
+  wire();
+}
 function allHomes(d){
   for(const id in rooms){const r=rooms[id];
     if(ROOMS[r.type]&&(ROOMS[r.type].pop||ROOMS[r.type].rent))r.happy=clamp(r.happy+d,0,100);}
@@ -1514,6 +1692,7 @@ const ITEMS={
   brewrecipe:{ico:"📜",name:"古式醸造の覚書",desc:"失われた製法。醸造所の稼ぎ+15%"},
   dragonshield:{ico:"🛡",name:"竜鱗の小盾",desc:"鱗を打ち直した盾。治安+1"},
   luckycoin: {ico:"🪙",name:"幸運の古銭",desc:"擦り切れた御守り銭。行商の実入り+10%"},
+  rodmap:    {ico:"🗺",name:"ロデリックの大陸図",desc:"命懸けで描かれた大陸全図。知識/魔力の獲得+10%・名声がゆるやかに育つ"},
 };
 function gainItem(k){
   if(inventory[k])return;
@@ -3798,6 +3977,14 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
   const wvHtml=route
     ?`<small>定まった道：<b>${route==="real"?"📜 史実の道（建設は地上30階まで）":"🔮 幻想の道（天井知らず）"}</b></small>`
     :`<small>📜現実 ${Math.round(worldView.realism)} ／ 🔮幻想 ${Math.round(worldView.fantasy)}　（どちらかが80に達すると道が定まる。男爵昇格時に賢者が問う）</small>`;
+  // 年代記サーガ (連載中の物語の登場人物・現況)
+  let sagaHtml="";
+  for(const id in sagas){
+    const h=sagaHero(id), st=sagas[id];
+    if(!h)continue;
+    sagaHtml+=`${h.ico} <b>${h.name}</b>（${h.role}）— <span style="color:${st.done?"#6e5b39":"#8e2b2b"}">${st.status}</span><br>`;
+  }
+  if(!sagaHtml)sagaHtml=`<span style="color:#9a8458">まだ誰の長い物語も始まっていない。城が大きくなれば、いずれ訪う者がいる…</span>`;
   // 年代記の結末
   const endN=Object.keys(endings).length;
   let endHtml="";
@@ -3852,6 +4039,8 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     <div class="retainer-list"><b>領民の階級（計${fmt(population())}人）：</b><br>${clsHtml}</div>
     <hr>
     <div class="retainer-list"><b>家臣団：</b><br>${retHtml}</div>
+    <hr>
+    <div class="retainer-list"><b>📖 年代記サーガ（連載中の物語）：</b><br>${sagaHtml}</div>
     <hr>
     <div class="retainer-list"><b>年代記の結末（${endN} / ${Object.keys(ENDING_DEFS).length}）：</b><br>${endHtml}</div>
     <hr>
@@ -3992,7 +4181,7 @@ function snapshot(){
   return {res,day,rankIdx,maxRankSeen,nextRoomId,throneBuilt,skyBuilt,won,
     route,sageShown,milestones,undergroundEnd,lastEventDay,retEvo,
     personality,worldView,gameMode,scenarioCh,endings,chains,flags,happyStreak,miseryStreak,era,
-    discoveries,inventory,
+    discoveries,inventory,sagas,
     ver:2, savedAt:Date.now(),
     rooms:Object.values(rooms).map(r=>({id:r.id,type:r.type,f:r.f,c:r.c,w:r.w,occ:r.occ}))};
 }
@@ -4061,6 +4250,7 @@ async function loadGame(){
       endings=d.endings||{};chains=d.chains||{};flags=d.flags||{};
       happyStreak=d.happyStreak||0;miseryStreak=d.miseryStreak||0;
       inventory=d.inventory||{};
+      sagas=d.sagas||{};
       discoveries={};
       for(const rid in (d.discoveries||{}))      // 撤去済みの部屋の✨は捨てる
         if(rooms[rid]&&DISCOVERIES[d.discoveries[rid]])discoveries[rid]=d.discoveries[rid];
