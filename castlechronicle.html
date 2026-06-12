@@ -2067,21 +2067,46 @@ function draw(){
     ctx.ellipse(x+cl.w*.5,cl.y+cam.y*0.15+50,cl.w*.6,cl.w*.26,0,0,7);
     ctx.fill();
   }
-  // 遠景の山
-  ctx.fillStyle=night?"#181c30":(winter?"#aab6c4":"#5d7390");
-  ctx.beginPath();ctx.moveTo(cam.x,GROUND_Y);
-  for(let x=0;x<=W;x+=40){
-    const wx=cam.x+x;
-    ctx.lineTo(wx,GROUND_Y-60-Math.abs(Math.sin(wx*.008))*110);
+  // 遠景: 多層パララックス (奥の山ほどゆっくり流れる)
+  const mtnLayer=(p,base,amp,col,fq,ph)=>{
+    ctx.fillStyle=col;
+    ctx.beginPath();ctx.moveTo(cam.x,GROUND_Y);
+    for(let x=0;x<=W;x+=30){
+      const k=(cam.x*p+x)*fq+ph;
+      ctx.lineTo(cam.x+x,GROUND_Y-base-Math.abs(Math.sin(k))*amp);
+    }
+    ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
+  };
+  mtnLayer(0.18, 75, 135, night?"#10142a":(winter?"#c3ccd8":"#7388a8"), .006, 0);   // 最遠の峰
+  mtnLayer(0.40, 45,  95, night?"#141830":(winter?"#aab6c4":"#5d7390"), .009, 2.4); // 中景の山
+  mtnLayer(0.65, 16,  52, night?"#0e1226":(winter?"#8b9aac":"#46597a"), .016, 5.1); // 近景の丘
+  // 近景の丘には森の影 (大きさも間隔も不揃いな梢)
+  ctx.fillStyle=night?"rgba(8,12,24,.5)":(winter?"rgba(90,104,120,.4)":"rgba(34,54,38,.5)");
+  for(let x=0;x<=W;x+=9){
+    const k=Math.floor((cam.x*0.65+x)/9);
+    const hsh=((k*2654435761)>>>0)%100;          // 決め打ちの乱数
+    if(hsh<38)continue;                          // 間引きで森の切れ間
+    const hy=GROUND_Y-16-Math.abs(Math.sin(k*9*.016+5.1))*52;
+    const rad=2.5+(hsh%5)*1.1, dy=3+(hsh%4)*2.2;
+    ctx.beginPath();ctx.arc(cam.x+x,hy+dy,rad,0,7);ctx.fill();
   }
-  ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
-  ctx.fillStyle=night?"#11142a":(winter?"#8b9aac":"#46597a");
-  ctx.beginPath();ctx.moveTo(cam.x,GROUND_Y);
-  for(let x=0;x<=W;x+=40){
-    const wx=cam.x+x;
-    ctx.lineTo(wx,GROUND_Y-30-Math.abs(Math.sin(wx*.013+5))*70);
+  // 高層に漂う雲海 (32階あたり。天空城郭は雲の上に頭を出す)
+  const seaY=floorTopY(32);
+  if(cam.y<seaY+260&&cam.y+H>seaY-160){
+    const sea=(yy,p,al,sc)=>{
+      ctx.fillStyle=night?`rgba(46,56,88,${al})`:`rgba(255,255,255,${al})`;
+      ctx.beginPath();
+      const drift=perfNow*.0035*sc;
+      for(let x=-90;x<=W+90;x+=44*sc){
+        const wx=cam.x+x;
+        const k=(cam.x*p+x)*.02+drift;
+        ctx.ellipse(wx,yy+Math.sin(k)*7,36*sc,11*sc,0,0,7);
+      }
+      ctx.fill();
+    };
+    sea(seaY+18,0.30,night?.45:.50,1.25);   // 奥の雲海 (ゆっくり)
+    sea(seaY,    0.55,night?.55:.65,1.0);   // 手前の雲海
   }
-  ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
 
   // --- 大地 (表土の帯 + 草むら + 深くなるほど暗い土) ---
   ctx.fillStyle=night?(winter?"#5e656e":"#241a10"):SEASONS[sIdx].ground;
@@ -2142,6 +2167,21 @@ function draw(){
   // --- 住人 ---
   for(const a of agents)drawAgent(a,night);
 
+  // --- 最前面を流れる薄雲 (高層のみ・城がうっすら霞む) ---
+  {
+    const seaY2=floorTopY(32);
+    if(cam.y<seaY2+200&&cam.y+H>seaY2-120){
+      ctx.fillStyle=night?"rgba(52,62,95,.28)":"rgba(255,255,255,.30)";
+      ctx.beginPath();
+      const drift2=perfNow*.006;
+      for(let x=-90;x<=W+90;x+=64){
+        const wx=cam.x+x;
+        const k=(cam.x*0.8+x)*.018+drift2;
+        ctx.ellipse(wx,seaY2-8+Math.sin(k)*9,44,9,0,0,7);
+      }
+      ctx.fill();
+    }
+  }
   // --- 雪 ---
   if(winter){
     ctx.fillStyle="rgba(255,255,255,.85)";
