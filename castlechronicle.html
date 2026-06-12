@@ -1416,7 +1416,7 @@ const EVENTS=[
       return "🕯 祭主が天を仰いだ刹那——蝋燭が一斉に消え、玉座の上の空気が一瞬だけ「誰かの形」に凹んだ。降臨は、あったのかもしれない。散会の混乱に乗じ子供を連れ出し、偽典『降臨の書』を懐に入れた。"+(route?loreName()+"+25":"");}}},
 
   // ================= 連鎖イベントの起点 =================
-  {id:"crownmap",t:"古地図の行商人",ico:"🗺",cond:()=>!chains.crown&&day>10,
+  {id:"crownmap",t:"古地図の行商人",ico:"🗺",wt:1.4,cond:()=>!chains.crown&&day>6,
    txt:"行商人が古びた羊皮紙を差し出した。「失われた王冠の在処を示す地図……だそうで。私には読めませんがね」",
    a:{label:"買う（-150G）",ps:{tradition:+3},
       fx:()=>{res.gold-=150;chains.crown={stage:0,nextDay:day+3};
@@ -1555,7 +1555,7 @@ const SAGAS={
   horizon:{
     name:"地平の彼方", ico:"🧭", img:"img/saga-horizon.jpg",
     hero:{name:"ロデリック", role:"探検家", ico:"🧭", img:"img/hero-roderick.jpg"},
-    start:()=>rankIdx>=2&&day>SEASON_LEN,           // 男爵以降、ひと季節たって登場
+    start:()=>rankIdx>=1&&day>SEASON_LEN,           // 砦(人口30)以降、ひと季節たって登場
     stages:{
       intro:{ status:"城門で謁見を待っている",
         t:"隻眼の探検家、来訪", kind:"choice",
@@ -1649,7 +1649,7 @@ const SAGAS={
   ledger:{
     name:"二重の帳簿", ico:"🕯", img:"img/saga-ledger.jpg",
     hero:{name:"マルコ", role:"財務官", ico:"💰", img:"img/marco.jpg"},
-    start:()=>hasRet(2)&&rankIdx>=3&&day>SEASON_LEN*2,
+    start:()=>hasRet(2)&&day>SEASON_LEN*2,
     stages:{
       intro:{ status:"匿名の告発文が届いた",
         t:"夜更けの告発文", kind:"choice",
@@ -1699,7 +1699,7 @@ const SAGAS={
   rose:{
     name:"白薔薇の盟約", ico:"🌹", img:"img/saga-rose.jpg",
     hero:{name:"エリアンヌ", role:"アヴェリン王国の王女", ico:"🌹", img:"img/hero-eliane.jpg"},
-    start:()=>rankIdx>=4&&res.fame>=150,
+    start:()=>rankIdx>=3&&res.fame>=120,
     stages:{
       intro:{ status:"城下に気品ある旅人が…",
         t:"市場の貴婦人", kind:"choice",
