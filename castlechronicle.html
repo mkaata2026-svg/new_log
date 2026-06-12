@@ -323,12 +323,12 @@ const ROOMS = {
   bank:    {name:"銀行",     ico:"🏦", w:4, cost:{g:3500,s:18},rank:2, minF:0, maxF:3, route:"real",
             upkeep:8, desc:"所持金の2%/日の利子(最大300G)。低層階のみ。"},
   // ---- 幻想の道 ----
-  magetower:{name:"魔法使いの塔",ico:"🔮", w:3, cost:{g:3000,s:14},rank:2, minF:0, maxF:F_MAX, route:"fantasy",
-            lore:2, upkeep:10, desc:"魔力+2/日。11階以上に置くと星に近づき+1。"},
+  magetower:{name:"魔法使いの塔",ico:"🔮", w:3, hh:2, cost:{g:3000,s:14},rank:2, minF:0, maxF:F_MAX, route:"fantasy",
+            lore:2, upkeep:10, desc:"そびえる尖塔(高さ2階分)。魔力+2/日。11階以上に置くと星に近づき+1。"},
   guild:   {name:"冒険者ギルド",ico:"🗡", w:4, cost:{g:2600,w:14},rank:2, minF:0, maxF:F_MAX, route:"fantasy",
             base:60, workers:3, quest:true, desc:"クエスト仲介で毎日40〜140Gの変動収入。"},
-  roost:   {name:"竜の巣",   ico:"🐲", w:5, cost:{g:6000,s:30},rank:4, minF:15, maxF:F_MAX, route:"fantasy",
-            security:6, upkeep:25, desc:"16階以上に竜を住まわせる。治安+6。夜空に竜が舞う。"},
+  roost:   {name:"竜の巣",   ico:"🐲", w:5, hh:2, cost:{g:6000,s:30},rank:4, minF:15, maxF:F_MAX, route:"fantasy",
+            security:6, upkeep:25, desc:"16階以上の大洞窟(高さ2階分)に竜を住まわせる。治安+6。夜空に竜が舞う。"},
   // ---- 共通の拡張施設 ----
   brewery: {name:"醸造所",   ico:"🍻", w:3, cost:{g:1200,w:10},rank:1, minF:0, maxF:F_MAX,
             base:90, workers:2, noisy:true, desc:"麦酒の香りが漂う。酒場と並ぶと城下は上機嫌。"},
@@ -340,12 +340,12 @@ const ROOMS = {
             food:4, desc:"地下専用。洞窟の気候は季節知らず——冬でも食料+4。地の民の主食。"},
   garden:  {name:"庭園",     ico:"🌷", w:3, cost:{g:1500,w:4,s:6},rank:2, minF:0, maxF:F_MAX, sky:true,
             aura:5, desc:"屋根のない場所限定。周囲の住居を癒す憩いの場。"},
-  monastery:{name:"修道院",  ico:"🕍", w:4, cost:{g:2000,s:12},rank:2, minF:0, maxF:F_MAX,
-            faith:2, food:2, upkeep:8, desc:"信仰+2/日。修道士は畑も耕す(食料+2)。"},
+  monastery:{name:"修道院",  ico:"🕍", w:4, hh:2, cost:{g:2000,s:12},rank:2, minF:0, maxF:F_MAX,
+            faith:2, food:2, upkeep:8, desc:"回廊を備えた静謐な伽藍(高さ2階分)。信仰+2/日。修道士は畑も耕す(食料+2)。"},
   armory:  {name:"兵器庫",   ico:"🏹", w:3, cost:{g:2200,s:10,i:8},rank:3, minF:0, maxF:F_MAX,
             security:4, upkeep:18, desc:"鉄の備え。治安+4。建設に鉄8が要る。"},
-  cathedral:{name:"大聖堂",  ico:"🛐", w:6, cost:{g:8000,s:40},rank:4, minF:0, maxF:F_MAX, needFaith:150,
-            faith:5, fame:1, aura:10, upkeep:20, desc:"信仰150で着工できる尖塔。信仰+5/日・名声+1/日、広い範囲を癒す。"},
+  cathedral:{name:"大聖堂",  ico:"🛐", w:6, hh:2, cost:{g:8000,s:40},rank:4, minF:0, maxF:F_MAX, needFaith:150,
+            faith:5, fame:1, aura:10, upkeep:20, desc:"バラ窓と双塔の大伽藍(高さ2階分)。信仰150で着工。信仰+5/日・名声+1/日、広い範囲を癒す。"},
   royalsuite:{name:"王族居室",ico:"🏰", w:3, cost:{g:6000,s:30,i:4},rank:5, minF:10, maxF:F_MAX,
             pop:2, rent:90, fame:2, desc:"11階以上に構える王族の私室。家賃と名声は最上級。"},
   // ---- 史実の道の拡張 ----
@@ -369,9 +369,9 @@ const ROOMS = {
   stonegen:{name:"賢者の石生成所",ico:"💎", w:3, cost:{g:6000,s:20},rank:4, minF:F_MIN, maxF:F_MAX, route:"fantasy", mile:"m3",
             base:150, upkeep:20, desc:"秘術『賢者の石』の量産設備。毎日150Gを錬成する。"},
   // ---- 終盤 ----
-  throne:  {name:"王座の間", ico:"👑", w:6, cost:{g:12000,s:40},rank:4, minF:5, maxF:F_MAX,
-            fame:2, desc:"6階以上に築く王の間。住民1人につき0.6Gの税。名声+2/日。王城昇格の必須条件。"},
-  skyhall: {name:"天空の間", ico:"🌟", w:6, cost:{g:30000,s:80},rank:5, minF:40, maxF:F_MAX,
+  throne:  {name:"王座の間", ico:"👑", w:6, hh:2, cost:{g:12000,s:40},rank:4, minF:5, maxF:F_MAX,
+            fame:2, desc:"天井の高い大広間(高さ2階分)。住民1人につき0.6Gの税。名声+2/日。王城昇格の必須条件。"},
+  skyhall: {name:"天空の間", ico:"🌟", w:6, hh:2, cost:{g:30000,s:80},rank:5, minF:40, maxF:F_MAX,
             desc:"伝説の間（幻想の道:41階以上／史実の道:26階以上の大聖堂の尖塔）。天空城郭への最後の鍵。"},
 };
 // 建設カテゴリ (下部のタブでカテゴリを切替。👆調べる/🔨撤去は常設)
@@ -570,6 +570,12 @@ function placeGate(){
 
 // ---------- 到達判定（BFS） ----------
 const VERT=t=>t==="stairs"||t==="lift"||t==="mlift"||t==="portal";
+// 歩ける床か（大建築=高さ2階分の部屋は、基部の階だけが床。上層は吹き抜け）
+function walkableCell(c,f){
+  const r=cellRoom(c,f);
+  if(!r)return false;
+  return (r.hh||1)===1||r.f===f;
+}
 function recomputeReach(){
   reachable=new Set();
   const q=[];
@@ -581,6 +587,7 @@ function recomputeReach(){
       if(nc<0||nc>=COLS||nf<F_MIN||nf>F_MAX)return;
       const k=key(nc,nf);
       if(!grid.hasOwnProperty(k)||reachable.has(k))return;
+      if(!walkableCell(nc,nf))return;        // 大広間の吹き抜けは歩けない
       reachable.add(k);q.push([nc,nf]);
     };
     tryAdd(c-1,f);tryAdd(c+1,f);
@@ -1787,7 +1794,15 @@ function canPlace(type,c,f){
     return{ok:false,why:"この階には建てられない"};
   }
   if(c<0||c+d.w>COLS)return{ok:false,why:"敷地の外"};
-  for(let i=0;i<d.w;i++)if(built(c+i,f))return{ok:false,why:"既に建物がある"};
+  const hh=d.hh||1;
+  if(hh>1){
+    if(f<0)return{ok:false,why:"大建築は地上にのみ築ける"};
+    if(f+hh-1>F_MAX)return{ok:false,why:"天に届きすぎる"};
+    if(route==="real"&&f+hh-1>REAL_FCAP&&!isCreative())
+      return{ok:false,why:"史実の道は30階まで（石積みの限界）"};
+  }
+  for(let j=0;j<hh;j++)for(let i=0;i<d.w;i++)
+    if(built(c+i,f+j))return{ok:false,why:j?"上の階の空間も必要（高さ2階分）":"既に建物がある"};
   if(f>0){for(let i=0;i<d.w;i++)if(!built(c+i,f-1))return{ok:false,why:"下の階に土台が必要"};}
   if(f<0){for(let i=0;i<d.w;i++)if(!built(c+i,f+1))return{ok:false,why:"上に床がないと掘れない"};}
   const cost=costAfter(d);
@@ -1803,9 +1818,9 @@ function place(type,c,f){
   const d=ROOMS[type];
   const cost=costAfter(d);
   res.gold-=cost.g;res.wood-=cost.w;res.stone-=cost.s;res.iron-=cost.i;
-  const r={id:nextRoomId++,type,f,c,w:d.w,occ:0,happy:70,active:false};
+  const r={id:nextRoomId++,type,f,c,w:d.w,hh:d.hh||1,occ:0,happy:70,active:false};
   rooms[r.id]=r;
-  for(let i=0;i<d.w;i++)grid[key(c+i,f)]=r.id;
+  for(let j=0;j<r.hh;j++)for(let i=0;i<d.w;i++)grid[key(c+i,f+j)]=r.id;
   if(type==="throne"){throneBuilt=true;toast("👑 王座の間が完成した！ 玉座が主を待っている");}
   if(type==="skyhall"){skyBuilt=true;toast("🌟 天空の間が完成！ 雲の上に玉光が灯る");sndMystic();}
   if(type==="roost"){toast("🐲 若い竜が巣に舞い降りた！ 城の守護者となるだろう");startDragon();}
@@ -1818,13 +1833,14 @@ function demolish(c,f){
   const r=cellRoom(c,f);
   if(!r){sndErr();return;}
   if(r.type==="gate"){toast("🚫 大門は城の心臓。壊せない","bad");sndErr();return;}
-  for(let i=0;i<r.w;i++)if(built(r.c+i,r.f+1)){toast("🚫 上に建物が載っている","bad");sndErr();return;}
+  const rh=r.hh||1;
+  for(let i=0;i<r.w;i++)if(built(r.c+i,r.f+rh)){toast("🚫 上に建物が載っている","bad");sndErr();return;}
   const d=ROOMS[r.type];
   res.gold+=Math.floor((d.cost.g||0)/2);
   res.wood=Math.min(999,res.wood+Math.floor((d.cost.w||0)/2));
   res.stone=Math.min(999,res.stone+Math.floor((d.cost.s||0)/2));
   res.iron=Math.min(999,res.iron+Math.floor((d.cost.i||0)/2));
-  for(let i=0;i<r.w;i++)delete grid[key(r.c+i,r.f)];
+  for(let j=0;j<rh;j++)for(let i=0;i<r.w;i++)delete grid[key(r.c+i,r.f+j)];
   delete discoveries[r.id];
   delete rooms[r.id];
   if(r.type==="throne")throneBuilt=Object.values(rooms).some(x=>x.type==="throne");
@@ -1867,7 +1883,7 @@ function findPath(c0,f0,c1,f1){
     }
     const r=cellRoom(c,f);
     const push=(nc,nf)=>{const k=key(nc,nf);
-      if(grid.hasOwnProperty(k)&&!(k in prev)){prev[k]=key(c,f);q.push([nc,nf]);}};
+      if(grid.hasOwnProperty(k)&&!(k in prev)&&walkableCell(nc,nf)){prev[k]=key(c,f);q.push([nc,nf]);}};
     push(c-1,f);push(c+1,f);
     if(r&&VERT(r.type))push(c,f+1);
     const below=cellRoom(c,f-1);
@@ -2117,17 +2133,19 @@ function draw(){
     const d=ROOMS[tool];
     if(d){
       const chk=canPlace(tool,hoverCell[0],hoverCell[1]);
+      const phh=d.hh||1, py=floorTopY(hoverCell[1]+phh-1);
       ctx.fillStyle=chk.ok?"rgba(120,220,120,.4)":"rgba(220,80,60,.4)";
-      ctx.fillRect(hoverCell[0]*TILE,floorTopY(hoverCell[1]),d.w*TILE,TILE);
+      ctx.fillRect(hoverCell[0]*TILE,py,d.w*TILE,phh*TILE);
       ctx.strokeStyle=chk.ok?"#9f9":"#f66";
-      ctx.strokeRect(hoverCell[0]*TILE+.5,floorTopY(hoverCell[1])+.5,d.w*TILE-1,TILE-1);
+      ctx.strokeRect(hoverCell[0]*TILE+.5,py+.5,d.w*TILE-1,phh*TILE-1);
     }
   }
   if(hoverCell&&tool==="demolish"){
     const r=cellRoom(hoverCell[0],hoverCell[1]);
     if(r&&r.type!=="gate"){
+      const rhh=r.hh||1;
       ctx.fillStyle="rgba(220,60,40,.35)";
-      ctx.fillRect(r.c*TILE,floorTopY(r.f),r.w*TILE,TILE);
+      ctx.fillRect(r.c*TILE,floorTopY(r.f+rhh-1),r.w*TILE,rhh*TILE);
     }
   }
   ctx.restore();
@@ -2311,14 +2329,16 @@ function drawDwelling(r,x,y,w,h,night,o){
   }
 }
 function drawRoom(r,night,sIdx){
-  const x=r.c*TILE,y=floorTopY(r.f),w=r.w*TILE,h=TILE;
+  const hh=r.hh||1;
+  const x=r.c*TILE,y=floorTopY(r.f+hh-1),w=r.w*TILE,h=hh*TILE;
   let base=r.f<0?"#4f463c":"#7b746a";
   ctx.fillStyle=base;ctx.fillRect(x,y,w,h);
   ctx.strokeStyle="rgba(0,0,0,.18)";ctx.lineWidth=1;
-  for(let i=0;i<r.w*2;i++){
-    const bx=x+i*TILE/2+((r.f%2)?TILE/4:0);
-    ctx.strokeRect(bx+.5,y+.5,TILE/2,TILE/2);
-    ctx.strokeRect(bx+.5-TILE/4,y+TILE/2+.5,TILE/2,TILE/2);
+  for(let row=0;row<hh*2;row++){
+    for(let i=0;i<r.w*2;i++){
+      const bx=x+i*TILE/2+(((r.f+row)%2)?TILE/4:0);
+      ctx.strokeRect(bx+.5,y+row*TILE/2+.5,TILE/2,TILE/2);
+    }
   }
   ctx.fillStyle="#3a2e20";ctx.fillRect(x,y+h-3,w,3);
   const t=perfNow*.001;
@@ -2592,11 +2612,32 @@ function drawRoom(r,night,sIdx){
       break;}
     case "magetower":{
       const fl=.5+.5*Math.sin(t*3+r.c);
-      ctx.fillStyle="#3a2c4e";ctx.fillRect(x+3,y+2,w-6,h-5);
-      ctx.fillStyle=`rgba(170,110,240,${.4+.4*fl})`;
-      ctx.beginPath();ctx.arc(x+w/2,y+10,5+fl*2,0,7);ctx.fill();
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-1,y+14,2,8);
-      ctx.fillStyle=`rgba(220,180,255,${.5+.5*fl})`;ctx.fillRect(x+w/2-1,y+9,2,2);
+      // 下層: 書斎 (全幅)
+      ctx.fillStyle="#352a48";ctx.fillRect(x+2,y+TILE+2,w-4,TILE-5);
+      ctx.fillStyle="#241a32";ctx.fillRect(x+4,y+TILE+5,w*0.45,2);          // 書棚
+      const bc=["#7cab54","#9a3bce","#caa53c","#5a9ad0"];
+      for(let i=0;i<5;i++){ctx.fillStyle=bc[i%4];ctx.fillRect(x+5+i*3.4,y+TILE+5.8,2.2,4);}
+      figure(x+w-9,y+h-3,{pose:"read",col:"#3a2c4e",hood:true,seed:r.id});  // 魔導士
+      // 上層: 細い塔身 (両脇はテラス)
+      const tw2=14, txc=x+w/2;
+      ctx.fillStyle=night?"#3f3a34":"#6e685c";ctx.fillRect(x+2,y+TILE-3,w-4,4); // テラス床
+      ctx.fillStyle="#56504a";for(let i=0;i<r.w*2;i++)ctx.fillRect(x+2+i*TILE/2+2,y+TILE-6,TILE/4,3); // 胸壁
+      ctx.fillStyle="#3a2c4e";ctx.fillRect(txc-tw2/2,y-2,tw2,TILE+2);       // 塔身
+      ctx.strokeStyle="#241a32";ctx.strokeRect(txc-tw2/2+.5,y-1.5,tw2-1,TILE+1);
+      ctx.fillStyle=`rgba(220,180,255,${.5+.4*fl})`;ctx.fillRect(txc-1.5,y+6,3,4.5); // 窓スリット
+      ctx.fillRect(txc-1.5,y+14,3,4.5);
+      // 円錐屋根と輝く宝珠 (屋根が空いていれば上空へ)
+      if(!built(r.c+(r.w>>1),r.f+hh)){
+        ctx.fillStyle="#52407a";
+        ctx.beginPath();ctx.moveTo(txc-tw2/2-3,y-2);ctx.lineTo(txc,y-16);ctx.lineTo(txc+tw2/2+3,y-2);ctx.closePath();ctx.fill();
+        ctx.fillStyle=`rgba(170,110,240,${.5+.5*fl})`;
+        ctx.beginPath();ctx.arc(txc,y-18,2.6+fl,0,7);ctx.fill();
+        ctx.fillStyle=`rgba(220,180,255,${.3*fl})`;ctx.beginPath();ctx.arc(txc,y-18,5+fl*2,0,7);ctx.fill();
+      }
+      // 漂うルーン
+      for(let i=0;i<3;i++){const a=t*1.2+i*2.1;
+        ctx.fillStyle=`rgba(190,150,255,${.4+.3*Math.sin(t*2+i)})`;
+        ctx.fillRect(txc+Math.cos(a)*11,y+10+Math.sin(a*1.4)*6,2,2);}
       break;}
     case "guild":{
       ctx.fillStyle="#6e4a2e";ctx.fillRect(x+3,y+4,10,12);
@@ -2607,43 +2648,119 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w-24,y+h-8,5,5);
       break;}
     case "roost":{
-      ctx.fillStyle="#2c2620";ctx.fillRect(x+2,y+2,w-4,h-5);
-      // 眠る竜
-      ctx.fillStyle="#3a5c3a";
-      ctx.beginPath();ctx.ellipse(x+w/2,y+h-9,18,6,0,0,7);ctx.fill();
-      ctx.beginPath();ctx.ellipse(x+w/2+14,y+h-12,6,4,0,0,7);ctx.fill();
-      const br=Math.sin(t*1.2)*1.5;
-      ctx.beginPath();ctx.ellipse(x+w/2-4,y+h-13-br,8,4,0,0,7);ctx.fill();
+      // 大洞窟: 岩のアーチに囲まれた竜の寝床
+      ctx.fillStyle="#241e18";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 洞窟の岩肌アーチ (上から垂れる岩)
+      ctx.fillStyle="#3a322a";
+      ctx.beginPath();ctx.moveTo(x+2,y+2);ctx.lineTo(x+2,y+h-3);ctx.lineTo(x+8,y+h-3);
+      ctx.quadraticCurveTo(x+6,y+h/2,x+12,y+8);ctx.quadraticCurveTo(x+w/2,y-2,x+w-12,y+8);
+      ctx.quadraticCurveTo(x+w-6,y+h/2,x+w-8,y+h-3);ctx.lineTo(x+w-2,y+h-3);ctx.lineTo(x+w-2,y+2);ctx.closePath();ctx.fill();
+      // 鍾乳石
+      ctx.fillStyle="#463c30";
+      for(let i=0;i<4;i++){const dx=x+14+i*((w-28)/3);
+        ctx.beginPath();ctx.moveTo(dx-2.4,y+7);ctx.lineTo(dx,y+13+(i%2)*3);ctx.lineTo(dx+2.4,y+7);ctx.closePath();ctx.fill();}
+      // 黄金の山
       ctx.fillStyle="#caa53c";
-      ctx.beginPath();ctx.arc(x+10,y+h-5,3,Math.PI,0);ctx.fill();
-      ctx.beginPath();ctx.arc(x+w-12,y+h-5,4,Math.PI,0);ctx.fill();
+      ctx.beginPath();ctx.arc(x+13,y+h-5,5,Math.PI,0);ctx.fill();
+      ctx.beginPath();ctx.arc(x+w-15,y+h-5,6,Math.PI,0);ctx.fill();
+      ctx.beginPath();ctx.arc(x+w/2,y+h-4,9,Math.PI,0);ctx.fill();
+      ctx.fillStyle="#e8c84a";ctx.fillRect(x+11,y+h-9,2,1.4);ctx.fillRect(x+w-16,y+h-10,2,1.4);
+      // 大きく眠る竜 (とぐろ・首・頭・翼・尾)
+      const br=Math.sin(t*1.2)*1.8;
+      ctx.fillStyle="#3a5c3a";
+      ctx.beginPath();ctx.ellipse(x+w/2,y+h-12,20,8,0,0,7);ctx.fill();          // 胴のとぐろ
+      ctx.beginPath();ctx.ellipse(x+w/2-6,y+h-18-br*.6,12,5,0,0,7);ctx.fill();  // 胴上段
+      ctx.beginPath();ctx.moveTo(x+w/2+10,y+h-16);ctx.quadraticCurveTo(x+w/2+20,y+h-24,x+w/2+16,y+h-27);ctx.lineTo(x+w/2+21,y+h-25);ctx.quadraticCurveTo(x+w/2+24,y+h-18,x+w/2+14,y+h-12);ctx.closePath();ctx.fill(); // 首と頭
+      ctx.fillStyle="#2e4a2e";
+      ctx.beginPath();ctx.moveTo(x+w/2-14,y+h-20);ctx.lineTo(x+w/2-2,y+h-30-br);ctx.lineTo(x+w/2+4,y+h-20);ctx.closePath();ctx.fill(); // 畳んだ翼
+      ctx.strokeStyle="#3a5c3a";ctx.lineWidth=2.4;
+      ctx.beginPath();ctx.moveTo(x+w/2-18,y+h-10);ctx.quadraticCurveTo(x+w-12,y+h-4,x+w-6,y+h-10);ctx.stroke();ctx.lineWidth=1; // 尾
+      // 寝息の煙
+      const pf=(t*8)%10;
+      ctx.fillStyle=`rgba(180,180,190,${.4-pf*.03})`;
+      ctx.beginPath();ctx.arc(x+w/2+20,y+h-28-pf,1.6+pf*.2,0,7);ctx.fill();
+      // 卵
+      ctx.fillStyle="#cdc4a0";
+      ctx.beginPath();ctx.ellipse(x+9,y+h-4,2.4,3,0,0,7);ctx.ellipse(x+14,y+h-4,2,2.6,0,0,7);ctx.fill();
+      ctx.fillStyle="#aaa088";ctx.fillRect(x+8,y+h-5,1,1);
+      // 骨
+      ctx.strokeStyle="#cdc4b4";ctx.beginPath();ctx.moveTo(x+w-10,y+h-4);ctx.lineTo(x+w-5,y+h-6);ctx.stroke();
+      ctx.fillStyle="#cdc4b4";ctx.beginPath();ctx.arc(x+w-10,y+h-4,1.2,0,7);ctx.arc(x+w-5,y+h-6,1.2,0,7);ctx.fill();
       break;}
     case "throne":{
-      ctx.fillStyle="#7e1f1f";ctx.fillRect(x+4,y+h-6,w-8,4);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+4,y+h-7,w-8,1);
+      // 天井の高い大広間
+      ctx.fillStyle=night?"#2a2024":"#5e4a44";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 垂れ下がる軍旗
+      const banCols=["#8e2b2b","#3f5e8c","#8e2b2b","#3f5e8c"];
+      for(let i=0;i<4;i++){const bx2=x+10+i*((w-20)/3);
+        ctx.fillStyle=banCols[i];
+        ctx.beginPath();ctx.moveTo(bx2-3.4,y+3);ctx.lineTo(bx2+3.4,y+3);
+        ctx.lineTo(bx2+3.4,y+13);ctx.lineTo(bx2,y+17);ctx.lineTo(bx2-3.4,y+13);ctx.closePath();ctx.fill();
+        ctx.fillStyle="#caa53c";ctx.fillRect(bx2-3.4,y+3,6.8,1.2);
+        ctx.fillRect(bx2-1.2,y+7,2.4,2.4);}                       // 紋章
+      // シャンデリア
+      const chX=x+w/2,chY=y+8;
+      ctx.strokeStyle="#caa53c";ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(chX,y+2);ctx.lineTo(chX,chY);ctx.stroke();
+      ctx.fillStyle="#8a6a2a";ctx.fillRect(chX-7,chY,14,1.6);
+      for(const lx of [chX-6,chX,chX+6]){const fl2=.5+.5*Math.sin(t*7+lx);
+        ctx.fillStyle=`rgba(255,170,60,${.6+.4*fl2})`;ctx.fillRect(lx-1,chY-3,2,3);}
+      // 緋毯と玉座 (背もたれの高い黄金の玉座)
+      ctx.fillStyle="#7e1f1f";ctx.fillRect(x+4,y+h-5,w-8,3);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+4,y+h-6,w-8,1);
+      ctx.fillStyle="#5e4a3a";ctx.fillRect(x+w/2-10,y+h-8,20,4);  // 壇
       ctx.fillStyle="#caa53c";
-      ctx.fillRect(x+w/2-7,y+6,14,3);
-      ctx.fillRect(x+w/2-6,y+9,12,11);
-      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+w/2-4,y+11,8,7);
-      for(const cxn of [x+10,x+w-10]){
-        ctx.fillStyle="#caa53c";ctx.fillRect(cxn-1,y+8,2,10);
+      ctx.fillRect(x+w/2-5,y+h-26,10,3);                          // 玉座笠木
+      ctx.fillRect(x+w/2-4,y+h-23,8,16);                          // 背もたれ
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+w/2-2.6,y+h-20,5.2,10); // 緋の張り
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-6,y+h-10,12,2);   // 座面
+      // 玉座の王と衛兵
+      if(throneBuilt)figure(x+w/2,y+h-8,{pose:"sit",col:"#5e3a78",hat:"#caa53c",seed:r.id});
+      for(const gx2 of [x+w/2-16,x+w/2+16]){
+        figure(gx2,y+h-3,{pose:"stand",col:"#2a2a30",hat:"#9aa6b2",seed:r.id+gx2});
+        ctx.strokeStyle="#9aa6b2";ctx.beginPath();ctx.moveTo(gx2+3,y+h-2);ctx.lineTo(gx2+3,y+h-16);ctx.stroke();}
+      // 篝火
+      for(const cxn of [x+7,x+w-7]){
+        ctx.fillStyle="#caa53c";ctx.fillRect(cxn-1,y+h-12,2,9);
         const fl=.5+.5*Math.sin(t*8+cxn);
-        ctx.fillStyle=`rgba(255,170,60,${.6+.4*fl})`;ctx.fillRect(cxn-2,y+4,4,5);
-      }
+        ctx.fillStyle=`rgba(255,170,60,${.6+.4*fl})`;
+        ctx.beginPath();ctx.moveTo(cxn-2.4,y+h-12);ctx.quadraticCurveTo(cxn,y+h-18-fl*2,cxn+2.4,y+h-12);ctx.closePath();ctx.fill();}
       break;}
     case "skyhall":{
       const fl=.5+.5*Math.sin(t*2);
-      ctx.fillStyle="#2a3450";ctx.fillRect(x+2,y+2,w-4,h-5);
-      for(let i=0;i<5;i++){
-        const wx=x+10+i*(w-26)/4;
-        ctx.fillStyle=`rgba(140,190,255,${.5+.4*fl})`;
-        ctx.beginPath();
-        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+9);
-        ctx.quadraticCurveTo(wx+4,y+3,wx+8,y+9);ctx.lineTo(wx+8,y+18);ctx.closePath();ctx.fill();
+      // 星天の大広間
+      ctx.fillStyle="#1c2440";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 内に瞬く星々
+      for(let i=0;i<14;i++){
+        const sx2=x+5+((r.id*7+i*37)%(w-10)), sy2=y+4+((r.id*13+i*23)%(h-14));
+        ctx.fillStyle=`rgba(220,235,255,${.3+.5*Math.abs(Math.sin(t*1.5+i))}`+")";
+        ctx.fillRect(sx2,sy2,1.4,1.4);}
+      // ドーム天井 (屋根が空いていれば)
+      if(!built(r.c+(r.w>>1),r.f+hh)){
+        ctx.fillStyle="#2a3450";
+        ctx.beginPath();ctx.moveTo(x+4,y);ctx.quadraticCurveTo(x+w/2,y-15,x+w-4,y);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#caa53c";ctx.beginPath();ctx.moveTo(x+4,y);ctx.quadraticCurveTo(x+w/2,y-15,x+w-4,y);ctx.stroke();
+        ctx.fillStyle=`rgba(255,240,180,${.7+.3*fl})`;ctx.beginPath();ctx.arc(x+w/2,y-9,2.2,0,7);ctx.fill(); // 頂の星
       }
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-8,y+3,16,2);
-      ctx.fillStyle=`rgba(255,240,180,${.6+.4*fl})`;
-      ctx.beginPath();ctx.arc(x+w/2,y+8,3,0,7);ctx.fill();
+      // 全高の尖頭窓
+      for(let i=0;i<5;i++){
+        const wx=x+8+i*(w-22)/4;
+        ctx.fillStyle=`rgba(140,190,255,${.45+.4*fl})`;
+        ctx.beginPath();
+        ctx.moveTo(wx,y+h-7);ctx.lineTo(wx,y+12);
+        ctx.quadraticCurveTo(wx+4,y+4,wx+8,y+12);ctx.lineTo(wx+8,y+h-7);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#3a4a70";ctx.stroke();
+      }
+      // 中央の天球儀 (回る輪)
+      const oX=x+w/2,oY=y+h-13;
+      ctx.strokeStyle=`rgba(230,200,120,${.7+.3*fl})`;ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.ellipse(oX,oY,8,3,t*.7,0,7);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(oX,oY,3,8,-t*.5,0,7);ctx.stroke();ctx.lineWidth=1;
+      ctx.fillStyle=`rgba(255,240,180,${.6+.4*fl})`;ctx.beginPath();ctx.arc(oX,oY,3,0,7);ctx.fill();
+      ctx.fillStyle="#caa53c";ctx.fillRect(oX-1.2,y+h-6,2.4,3);   // 台座
+      // 雲の床
+      ctx.fillStyle="rgba(200,215,235,.35)";
+      ctx.beginPath();ctx.ellipse(x+10,y+h-4,8,2.4,0,0,7);ctx.ellipse(x+w-12,y+h-4,9,2.6,0,0,7);ctx.fill();
       break;}
     case "portal":{
       const fl=.5+.5*Math.sin(t*5+r.c);
@@ -2680,17 +2797,38 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#a08b5e";ctx.fillRect(x+w-14,y+h-9,6,1.4);
       break;}
     case "monastery":{
-      ctx.fillStyle=night?"#2a2a32":"#7a7468";ctx.fillRect(x+2,y+2,w-4,h-5);
-      // アーチの回廊
-      for(let i=0;i<r.w+1;i++){const ax=x+4+i*((w-8)/r.w);
-        ctx.fillStyle=night?"#3a3a44":"#8a8478";ctx.fillRect(ax,y+6,2.5,h-9);}
-      // 蝋燭と祭壇
-      lamp(x+6,y+8,true,r.id);
-      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-12,y+h-7,7,4);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-11,1.4,5);ctx.fillRect(x+w-10.5,y+h-10,4,1.4); // 十字
-      // 祈る修道士
-      figure(x+w/2,y+h-3,{pose:"pray",col:"#5a554a",seed:r.id});
-      figure(x+w/2-9,y+h-3,{pose:"kneel",col:"#6a6458",seed:r.id+1});
+      // 広い伽藍: 下層=回廊、上層=僧房と鐘楼
+      ctx.fillStyle=night?"#2a2a32":"#8a8478";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 屋根の鐘楼
+      const belfree=!built(r.c+(r.w>>1),r.f+hh);
+      if(belfree){
+        ctx.fillStyle=night?"#23232c":"#756f63";
+        ctx.fillRect(x+w/2-5,y-7,10,8);
+        ctx.beginPath();ctx.moveTo(x+w/2-6,y-7);ctx.lineTo(x+w/2,y-14);ctx.lineTo(x+w/2+6,y-7);ctx.closePath();ctx.fill();
+        ctx.fillStyle="#1c1c22";ctx.fillRect(x+w/2-2.4,y-6,4.8,5);    // 鐘室
+        const sw=Math.sin(t*1.4)*1.2;
+        ctx.fillStyle="#caa53c";ctx.beginPath();ctx.arc(x+w/2+sw,y-3,1.8,0,7);ctx.fill(); // 鐘
+        ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-.6,y-17,1.2,3.5);ctx.fillRect(x+w/2-1.8,y-16.2,3.6,1);
+      }
+      // 上層: 僧房の小窓の列
+      for(let i=0;i<r.w*2;i++){const wx2=x+6+i*((w-12)/(r.w*2-1||1));
+        ctx.fillStyle=night?((r.id+i)%3?"#1b2330":"rgba(255,200,110,.85)"):"#3a4a5e";
+        ctx.fillRect(wx2-1.6,y+5,3.2,4.5);}
+      // 中間の床帯
+      ctx.fillStyle=night?"#1f1f28":"#6b6557";ctx.fillRect(x+2,y+TILE-1,w-4,2.5);
+      // 下層: 回廊のアーチ
+      for(let i=0;i<r.w;i++){const ax=x+TILE/2+i*TILE;
+        ctx.fillStyle=night?"#15151c":"#4a463c";
+        ctx.beginPath();ctx.moveTo(ax-7,y+h-4);ctx.lineTo(ax-7,y+TILE+9);
+        ctx.quadraticCurveTo(ax,y+TILE+2,ax+7,y+TILE+9);ctx.lineTo(ax+7,y+h-4);ctx.closePath();ctx.fill();}
+      // 中庭の薬草鉢・祭壇・修道士たち
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+5,y+h-6,4,3);
+      ctx.fillStyle="#5e8a3c";ctx.fillRect(x+5.5,y+h-8,3,2);
+      lamp(x+w-6,y+TILE+8,true,r.id);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-12,1.4,5);ctx.fillRect(x+w-10.5,y+h-10.8,4,1.4);
+      figure(x+w/2-6,y+h-3,{pose:"pray",col:"#5a554a",hood:true,seed:r.id});
+      figure(x+w/2+6,y+h-3,{pose:"kneel",col:"#6a6458",hood:true,seed:r.id+1});
+      figure(x+14,y+h-3,{pose:"stand",col:"#7a7468",hood:true,seed:r.id+2});
       break;}
     case "garden":{
       ctx.fillStyle="#4a3a26";ctx.fillRect(x,y+h-6,w,4);          // 花壇の土
@@ -2744,21 +2882,45 @@ function drawRoom(r,night,sIdx){
           ctx.strokeStyle="#7a5430";ctx.beginPath();ctx.moveTo(wx2-2,y+10);ctx.lineTo(wx2+2,y+10);ctx.stroke();}}
       break;}
     case "cathedral":{
-      ctx.fillStyle=night?"#222634":"#8a8478";ctx.fillRect(x+2,y+2,w-4,h-5);
-      // 大きなバラ窓
-      const rosX=x+w/2, rosY=y+9, gl=night?.95:.7;
-      const petal=["#b8412e","#3f5e8c","#caa53c","#5e8a3c"];
-      for(let k=0;k<6;k++){const a=k/6*Math.PI*2;
-        ctx.fillStyle=`rgba(${k%2?"180,70,50":"70,110,180"},${gl})`;
-        ctx.beginPath();ctx.arc(rosX+Math.cos(a)*3,rosY+Math.sin(a)*3,2.2,0,7);ctx.fill();}
-      ctx.fillStyle=`rgba(255,240,180,${gl})`;ctx.beginPath();ctx.arc(rosX,rosY,1.6,0,7);ctx.fill();
-      // 尖塔アーチ窓を左右に
-      for(const ax of [x+8,x+w-8]){ctx.fillStyle=night?"#caa53c":"#3a5a86";
-        ctx.beginPath();ctx.moveTo(ax-2,y+16);ctx.lineTo(ax-2,y+8);ctx.quadraticCurveTo(ax,y+4,ax+2,y+8);ctx.lineTo(ax+2,y+16);ctx.closePath();ctx.globalAlpha=gl;ctx.fill();ctx.globalAlpha=1;}
-      // 祭壇と祈る人々
-      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w/2-5,y+h-6,10,3);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-.7,y+h-12,1.4,6);ctx.fillRect(x+w/2-2.5,y+h-10,5,1.4);
-      for(let i=0;i<Math.min(4,r.w-1);i++)figure(x+7+i*9,y+h-3,{pose:"pray",col:"#4a4452",seed:r.id+i});
+      const gl=night?.95:.75;
+      // 大伽藍の石壁
+      ctx.fillStyle=night?"#262a38":"#938d80";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 屋根が空いていれば双塔と中央尖塔 (上空への張り出し)
+      const roofFree=!built(r.c,r.f+hh)&&!built(r.c+r.w-1,r.f+hh)&&!built(r.c+(r.w>>1),r.f+hh);
+      if(roofFree){
+        ctx.fillStyle=night?"#1e2230":"#7b756a";
+        for(const tx of [x+6,x+w-6]){                      // 双塔
+          ctx.fillRect(tx-5,y-8,10,10);
+          ctx.beginPath();ctx.moveTo(tx-5,y-8);ctx.lineTo(tx,y-19);ctx.lineTo(tx+5,y-8);ctx.closePath();ctx.fill();
+          ctx.fillStyle="#caa53c";ctx.fillRect(tx-.7,y-22,1.4,4);ctx.fillRect(tx-2,y-21,4,1.2); // 十字
+          ctx.fillStyle=night?"#1e2230":"#7b756a";
+        }
+        ctx.beginPath();ctx.moveTo(x+w/2-9,y);ctx.lineTo(x+w/2,y-13);ctx.lineTo(x+w/2+9,y);ctx.closePath();ctx.fill(); // 中央尖塔
+        ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-.7,y-17,1.4,4.5);ctx.fillRect(x+w/2-2.2,y-16,4.4,1.2);
+      }
+      // 大バラ窓 (上層中央・二重の花弁)
+      const rosX=x+w/2, rosY=y+12;
+      ctx.fillStyle=night?"#11131e":"#4a4640";ctx.beginPath();ctx.arc(rosX,rosY,9,0,7);ctx.fill();
+      for(let k=0;k<8;k++){const a=k/8*Math.PI*2;
+        ctx.fillStyle=`rgba(${k%2?"190,70,50":"70,110,190"},${gl})`;
+        ctx.beginPath();ctx.arc(rosX+Math.cos(a)*5.4,rosY+Math.sin(a)*5.4,2.4,0,7);ctx.fill();}
+      ctx.fillStyle=`rgba(230,190,80,${gl})`;ctx.beginPath();ctx.arc(rosX,rosY,2.6,0,7);ctx.fill();
+      ctx.strokeStyle="#2e2a24";ctx.beginPath();ctx.arc(rosX,rosY,9,0,7);ctx.stroke();
+      // 全高の尖頭アーチ窓を左右に2本ずつ
+      for(const ax of [x+9,x+22,x+w-22,x+w-9]){
+        ctx.fillStyle=night?`rgba(230,180,80,${gl})`:`rgba(70,100,160,${gl})`;
+        ctx.beginPath();ctx.moveTo(ax-2.6,y+h-8);ctx.lineTo(ax-2.6,y+12);
+        ctx.quadraticCurveTo(ax,y+5,ax+2.6,y+12);ctx.lineTo(ax+2.6,y+h-8);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#2e2a24";ctx.stroke();
+        ctx.beginPath();ctx.moveTo(ax,y+8);ctx.lineTo(ax,y+h-8);ctx.stroke();   // 中桟
+      }
+      // 内陣: 祭壇・燭台・会衆席
+      ctx.fillStyle="#7a2e2e";ctx.fillRect(x+5,y+h-5,w-10,2);              // 緋毯
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w/2-6,y+h-9,12,4);            // 祭壇
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-.8,y+h-16,1.6,7);ctx.fillRect(x+w/2-3,y+h-14,6,1.5); // 黄金十字
+      lamp(x+w/2-10,y+h-12,true,r.id);lamp(x+w/2+10,y+h-12,true,r.id+1);
+      for(let i=0;i<Math.min(4,r.w-2);i++)figure(x+9+i*9,y+h-3,{pose:"pray",col:"#4a4452",seed:r.id+i});
+      figure(x+w-12,y+h-3,{pose:"stand",col:"#7a7468",hood:true,seed:r.id+9}); // 司祭
       break;}
     case "alchemy":{
       ctx.fillStyle=night?"#1f2630":"#3e4a40";ctx.fillRect(x+2,y+2,w-4,h-5);
@@ -2889,6 +3051,7 @@ function drawBattlements(night,winter){
         const x=c*TILE,y=floorTopY(f);
         const r=cellRoom(c,f);
         if(r&&ROOMS[r.type]&&ROOMS[r.type].sky)continue;  // 農場の上は空のまま
+        if(r&&(r.hh||1)>1)continue;                       // 大建築は自前の屋根を持つ
         ctx.fillStyle=night?"#56504a":"#8a8276";
         ctx.fillRect(x,y-6,TILE,6);
         ctx.fillStyle="rgba(0,0,0,.25)";
@@ -3589,6 +3752,31 @@ async function saveGame(){
     await window.storage.set("castle_chronicle_v2",JSON.stringify(snapshot()));
   }catch(e){}
 }
+// セーブから部屋とグリッドを再構築。
+// 大建築(hh:2)は2段ぶん埋めるが、旧セーブで真上に別の部屋が載っている場合は
+// 衝突を避けて高さ1のまま運用する(壊して建て直せば大広間になる)
+function rebuildRooms(list){
+  grid={};rooms={};
+  // 第1段: 基部だけ埋める
+  for(const rr of list){
+    if(!ROOMS[rr.type]&&rr.type!=="gate")continue;
+    rooms[rr.id]={...rr,hh:1,happy:70,active:false};
+    for(let i=0;i<rr.w;i++)grid[key(rr.c+i,rr.f)]=rr.id;
+  }
+  // 第2段: 大建築の上層を、空いていれば確保
+  for(const id in rooms){
+    const r=rooms[id];const d=ROOMS[r.type];
+    const hh=d&&d.hh||1;
+    if(hh<2)continue;
+    let free=true;
+    for(let j=1;j<hh;j++)for(let i=0;i<r.w;i++)
+      if(grid.hasOwnProperty(key(r.c+i,r.f+j))){free=false;break;}
+    if(free){
+      r.hh=hh;
+      for(let j=1;j<hh;j++)for(let i=0;i<r.w;i++)grid[key(r.c+i,r.f+j)]=r.id;
+    }
+  }
+}
 async function loadGame(){
   try{
     if(!window.storage)return false;
@@ -3608,12 +3796,7 @@ async function loadGame(){
     }catch(e){}
     if(raw){
       const d=JSON.parse(raw);
-      grid={};rooms={};
-      for(const rr of d.rooms){
-        if(!ROOMS[rr.type]&&rr.type!=="gate")continue;
-        rooms[rr.id]={...rr,happy:70,active:false};
-        for(let i=0;i<rr.w;i++)grid[key(rr.c+i,rr.f)]=rr.id;
-      }
+      rebuildRooms(d.rooms);
       res=Object.assign({gold:0,food:0,wood:0,stone:0,lore:0,iron:0,faith:0,fame:0},d.res);
       era=d.era||0;
       day=d.day;rankIdx=d.rankIdx||0;maxRankSeen=d.maxRankSeen||rankIdx;
@@ -3640,12 +3823,7 @@ async function loadGame(){
       const r1=await window.storage.get("castle_keeper_v1");
       if(r1&&r1.value){
         const d=JSON.parse(r1.value);
-        grid={};rooms={};
-        for(const rr of d.rooms){
-          if(!ROOMS[rr.type]&&rr.type!=="gate")continue;
-          rooms[rr.id]={...rr,happy:70,active:false};
-          for(let i=0;i<rr.w;i++)grid[key(rr.c+i,rr.f)]=rr.id;
-        }
+        rebuildRooms(d.rooms);
         res.gold=d.gold||5000;day=d.day||1;rankIdx=Math.min(d.rankIdx||0,4);
         maxRankSeen=rankIdx;nextRoomId=d.nextRoomId||1000;throneBuilt=!!d.throneBuilt;
         res.food=120;res.wood=80;res.stone=40;
