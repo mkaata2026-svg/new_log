@@ -427,6 +427,8 @@ let chains = {};                  // 連鎖イベント進行 {id:{stage,nextDay
 let flags = {};                   // 各種フラグ {mercUntil, prophecyShield, guildCharter, parliament, shadowPact}
 let happyStreak = 0;              // 高幸福の連続日数 (人民の英雄用)
 let miseryStreak = 0;             // 低幸福の連続日数 (暴君の最期用)
+let discoveries = {};             // roomId → 発見キー。✨の光る部屋を👆で調べると物語が始まる
+let inventory = {};               // 蒐集品 {itemKey:true}
 
 const isCreative = ()=>gameMode&&gameMode.kind==="creative";
 const isScenario = ()=>gameMode&&gameMode.kind==="scenario";
@@ -703,6 +705,8 @@ function security(){
   if(flags.mercUntil&&day<=flags.mercUntil)s+=5; // 傭兵団
   if(persType()==="tyrant")s+=2;      // 恐怖は秩序を生む
   if(classBreakdown().knight>=8)s+=1; // 騎士階級の厚み
+  if(inventory.silvercross)s+=1;      // 銀の聖印
+  if(inventory.dragonshield)s+=1;     // 竜鱗の小盾
   return s;
 }
 
@@ -730,6 +734,7 @@ function dailyTick(){
     :1;
   const pt=persType(), dm=diffMul();
   if(pt==="merchant")loreMul*=0.85;   // 商業王: 学芸は後回し
+  if(inventory.falsebook)loreMul*=1.05; // 偽典『降臨の書』
   let foodGain=0;
 
   for(const id in rooms){
@@ -745,7 +750,8 @@ function dailyTick(){
     if(d.rent)income+=d.rent*r.occ*(r.happy/100+.3)*rentMul;
     if(d.base)income+=d.base*commerceF*(0.5+r.happy/150)
       *(pt==="merchant"?1.18:1)
-      *((r.type==="workshop"||r.type==="blacksmith")?craftMul:1);
+      *((r.type==="workshop"||r.type==="blacksmith")?craftMul:1)
+      *(r.type==="brewery"&&inventory.brewrecipe?1.15:1);   // 古式醸造の覚書
     if(d.quest)income+=rnd(40,140)-d.base*commerceF*0.3+(cls.adventurer>=6?30:0); // クエスト変動+冒険者階級
     if(d.justice)income+=pop*0.3;                        // 裁判所: 司法収入
     if(d.upkeep)expense+=d.upkeep;
@@ -830,6 +836,7 @@ function dailyTick(){
   checkMilestones();
   checkEra();
   chainTick();
+  spawnDiscoveries();
   if(!maybeChoiceEvent())randomEvent(pop);
   checkRank(pop);
   recomputeHappiness();
@@ -1001,6 +1008,7 @@ function randomEvent(pop){
   let guard=hasRet(5)?(retEvo[5]==="shadow"?0.25:0.5):1; // シルヴィア (影の支配者=1/4)
   if(persType()==="puppeteer")guard*=0.6;                 // 影の操り人形師: 凶事さらに4割減
   if(faithTier()>=3)guard*=0.7;                           // 守護の奇跡
+  if(inventory.bonecharm)guard*=0.85;                     // 骨の護符
   if(roll<.07*diffMul().raid&&pop>20){
     const sec=security();
     if(sec*45<pop){
@@ -1022,14 +1030,15 @@ function randomEvent(pop){
       }
     }
   }else if(roll<.12){
-    const g=Math.round(rnd(80,220));res.gold+=g;
+    const g=Math.round(rnd(80,220)*(inventory.luckycoin?1.1:1));  // 幸運の古銭
+    res.gold+=g;
     toast("🐪 行商の隊列が城を訪れ、"+fmt(g)+"G の取引があった","gold");
   }
 }
 
 // ---------- 選択イベント ----------
 const EVENTS=[
-  {id:"cheese",t:"チーズ転がし事件",ico:"🧀",img:"img/event-cheese.jpg",
+  {id:"cheese",t:"チーズ転がし事件",ico:"🧀",wt:1.3,img:"img/event-cheese.jpg",
    cond:()=>population()>15,
    txt:"丘の上から巨大な車輪チーズが転がり落ち、市場の屋台に突っ込んだ！ 群衆は大騒ぎだ。",
    a:{label:"いっそ祭りにする（-80G）",fx:()=>{res.gold-=80;allHomes(10);return "🎉 チーズ転がし祭が誕生！ 領民の幸福度が上がった";}},
@@ -1048,7 +1057,7 @@ const EVENTS=[
    a:{label:"食料を分けてやる（-食料8）",fx:()=>{res.food=Math.max(0,res.food-8);allHomes(8);
       return "😺 猫たちは城の鼠を狩るようになった。領民は猫を愛し、幸福度が上がった";}},
    b:{label:"追い払う",fx:()=>{allHomes(-4);return "🐾 猫たちは去った。なぜか領民たちの目が冷たい…";}}},
-  {id:"caravan",t:"大商隊の来訪",ico:"🐪",
+  {id:"caravan",t:"大商隊の来訪",ico:"🐪",wt:1.3,
    cond:()=>day>3,
    txt:"東方から大商隊が到着。資材を山と積んでいる。「殿、良い品がございますぞ」",
    a:{label:"資材を買い込む（-250G→木+15 石+10）",fx:()=>{res.gold-=250;res.wood=Math.min(999,res.wood+15);res.stone=Math.min(999,res.stone+10);
@@ -1063,7 +1072,7 @@ const EVENTS=[
    b:{label:"静かに泳がせて元締めを探る",fx:()=>{
       if(hasRet(5)){res.gold+=320;return "🎭 シルヴィアが元締めの隠し金庫を暴いた！ +320G";}
       res.gold-=100;return "💸 尻尾を掴めず、被害だけが残った… -100G";}}},
-  {id:"bard",t:"吟遊詩人の来訪",ico:"🎻",
+  {id:"bard",t:"吟遊詩人の来訪",ico:"🎻",wt:1.3,
    cond:()=>true,
    txt:"旅の吟遊詩人が門前で歌っている。「この城の物語を、歌にして大陸へ広めましょう」",
    a:{label:"城に滞在させる（-60G）",fx:()=>{res.gold-=60;allHomes(10);
@@ -1109,7 +1118,7 @@ const EVENTS=[
    a:{label:"同席する",fx:()=>{res.lore+=12;allHomes(-4);
       return "👻 古の城の話をたっぷり聞けた。魔力+12。…領民はちょっと怖がっている";}},
    b:{label:"聖水を撒く（-50G）",fx:()=>{res.gold-=50;return "💧 貴婦人は「無粋ねえ」と言い残し、霧になった";}}},
-  {id:"dragonvisit",t:"野生の竜、飛来",ico:"🐉",img:"img/dragon.jpg",cond:()=>route==="fantasy"&&countType("roost")===0&&population()>150,
+  {id:"dragonvisit",t:"野生の竜、飛来",ico:"🐉",wt:0.7,img:"img/dragon.jpg",cond:()=>route==="fantasy"&&countType("roost")===0&&population()>150,
    txt:"巨大な竜が城の上空を旋回している！ 財宝の匂いを嗅ぎつけたようだ。",
    a:{label:"貢物を捧げる（-400G）",fx:()=>{res.gold-=400;startDragon();
       return "🐲 竜は満足げに咆哮し、飛び去った。…少し名残惜しそうに城を見ていた";}},
@@ -1198,7 +1207,7 @@ const EVENTS=[
       allHomes(-5);return "🕯 遠征は苦難の連続だった…騎士たちは疲れ果てて帰還した";}},
    b:{label:"丁重に辞退する",ps:{control:+3},
       fx:()=>{return "🕊 「領民を守るのが我が務め」——使者は渋い顔で去った";}}},
-  {id:"invasion",t:"隣国侵攻の予兆",ico:"🗡",cond:()=>rankIdx>=4,
+  {id:"invasion",t:"隣国侵攻の予兆",ico:"🗡",wt:0.7,cond:()=>rankIdx>=4,
    txt:"国境の斥候より急報。隣国の軍勢が、こちらへ向け集結しつつあるという。",
    a:{label:"先制して叩く",ps:{mercy:-5,tyranny:-4},
       fx:()=>{if(security()>=12){res.gold+=700;return "⚔️ 夜襲は完璧に決まった。敵は四散し、軍資金700Gを鹵獲！";}
@@ -1281,7 +1290,7 @@ const EVENTS=[
       fx:()=>{return Math.random()<.5?"🃏 仮面の下は、また仮面だった。道化師は一礼して煙のように消えた":"🃏 「無粋!」と叫んで道化師は去った。去り際の宙返りは見事だった";}}},
 
   // ================= 特殊系 =================
-  {id:"apocalypse",t:"世界の終わりの預言",ico:"☄",cond:()=>rankIdx>=4,
+  {id:"apocalypse",t:"世界の終わりの預言",ico:"☄",wt:0.5,cond:()=>rankIdx>=4,
    txt:"「次の新月、空から星が落ち、世界は終わる」——流浪の説教師が城下で説き、領民が動揺している。",
    a:{label:"祈りと備蓄で備える（-400G）",ps:{tradition:-3,mercy:+3},
       fx:()=>{res.gold-=400;res.food=Math.min(2000,res.food+30);allHomes(4);
@@ -1291,7 +1300,7 @@ const EVENTS=[
       res.gold-=300;allHomes(-6);return "☄ 新月の夜、小さな流星が納屋を焼いた…偶然だ。偶然のはずだ… -300G";}}},
 
   // ================= 名声・信仰・鉄のイベント =================
-  {id:"royalvisit",t:"王の行幸",ico:"🎺",cond:()=>res.fame>=200&&!flags.royalVisited,
+  {id:"royalvisit",t:"王の行幸",ico:"🎺",wt:0.6,cond:()=>res.fame>=200&&!flags.royalVisited,
    txt:"先触れの喇叭が鳴り響いた。名声を聞きつけた国王陛下が、自らこの城を訪れるという！",
    a:{label:"国を挙げて歓待する（-800G）",ps:{tradition:-3,greed:+3},
       fx:()=>{res.gold-=800;flags.royalVisited=true;res.fame=Math.min(9999,res.fame+80);allHomes(10);
@@ -1317,6 +1326,20 @@ const EVENTS=[
       res.stone=Math.min(999,res.stone+10);return "🪨 鉄は出なかったが、固い石材10を得た。親方は首を傾げている";}},
    b:{label:"今の坑道を守らせる",ps:{tradition:-3},
       fx:()=>{return "⛰ 「欲をかいて山を怒らせてはならん」——親方は渋々頷いた";}}},
+
+  // ================= 連作『逆さの鍵』最終夜 (日記3頁を集めると訪れる) =================
+  {id:"cultfinale",t:"新月——逆さの鍵",ico:"🗝",wt:4,cond:()=>flags.cult===3&&!flags.cultDone,
+   txt:"新月の夜が来た。地下水路の合流口に、何十もの蝋燭と、フードの列。空の小さな玉座の前で、教団『逆さの鍵』の祭主が両腕を広げる——「扉は開かれた。降臨の刻である」。傍らには、眠らされた子供がひとり。",
+   a:{label:"騎士団で踏み込み、子を救う",ps:{mercy:+6,tyranny:-2},wv:{realism:+5},
+      fx:()=>{flags.cultDone=true;flags.cult=0;
+      if(security()>=6){res.gold+=300;gainItem("silvercross");allHomes(6);
+        return "⚔️ 一斉摘発！ 子は無事保護され、教団の資金300Gを没収。祭主の持っていた『銀の聖印』は、皮肉にも本物の聖具だった——司書アルノーの仇は取った";}
+      loseVillagers(0.03);allHomes(-4);
+      return "🔥 兵が足りず乱戦に……子は救ったが、教団の一部は闇に消えた。いつかまた、鍵の紋を見る気がする（兵舎を増やしておくべきだった）";}},
+   b:{label:"フードを被り、最後まで見届ける",ps:{control:+4},wv:{fantasy:+7},
+      fx:()=>{flags.cultDone=true;flags.cult=0;
+      gainItem("falsebook");if(route)res.lore+=25;allHomes(-3);
+      return "🕯 祭主が天を仰いだ刹那——蝋燭が一斉に消え、玉座の上の空気が一瞬だけ「誰かの形」に凹んだ。降臨は、あったのかもしれない。散会の混乱に乗じ子供を連れ出し、偽典『降臨の書』を懐に入れた。"+(route?loreName()+"+25":"");}}},
 
   // ================= 連鎖イベントの起点 =================
   {id:"crownmap",t:"古地図の行商人",ico:"🗺",cond:()=>!chains.crown&&day>10,
@@ -1457,6 +1480,144 @@ function loseVillagers(rate){
 function countType(t){let n=0;for(const id in rooms)if(rooms[id].type===t&&rooms[id].active)n++;return n;}
 function countBasement(){let n=0;for(const id in rooms)if(rooms[id].f<0)n++;return n;}
 
+// ---------- 蒐集品 (発見イベントで手に入る。持っているだけで効く品も) ----------
+const ITEMS={
+  diary1:    {ico:"📓",name:"黒い日記・第一頁",desc:"司書の遺した告発の記録"},
+  diary2:    {ico:"📓",name:"黒い日記・第二頁",desc:"教団『逆さの鍵』の広がりを追う"},
+  diary3:    {ico:"📓",name:"黒い日記・第三頁",desc:"地下の儀式と「器」の正体に迫る"},
+  silvercross:{ico:"✠",name:"銀の聖印",desc:"教団摘発の証。治安+1"},
+  falsebook: {ico:"📕",name:"偽典『降臨の書』",desc:"禁断の写本。知識/魔力の獲得+5%"},
+  bonecharm: {ico:"🦴",name:"骨の護符",desc:"地の底の御守り。夜盗の被害-15%"},
+  brewrecipe:{ico:"📜",name:"古式醸造の覚書",desc:"失われた製法。醸造所の稼ぎ+15%"},
+  dragonshield:{ico:"🛡",name:"竜鱗の小盾",desc:"鱗を打ち直した盾。治安+1"},
+  luckycoin: {ico:"🪙",name:"幸運の古銭",desc:"擦り切れた御守り銭。行商の実入り+10%"},
+};
+function gainItem(k){
+  if(inventory[k])return;
+  inventory[k]=true;
+  const it=ITEMS[k];
+  toast("🎁 蒐集品『"+it.ico+" "+it.name+"』を手に入れた！（📜心得で一覧）","gold");
+}
+
+// ---------- 発見イベント (✨の光る部屋を👆で調べると始まる読み物) ----------
+const DISCOVERIES={
+  // ==== 連作『逆さの鍵』 — 大学の日記から始まる、神の降臨を待つ教団の物語 ====
+  diary1:{rooms:["university","magetower","monastery"],once:true,cond:()=>!flags.cult,
+    t:"埃の奥の黒い日記",ico:"📓",
+    txt:"書架の最奥、目録にない黒い日記。先代の司書の筆跡だ。<br><br>「……今宵もまた、夜半に集う影を見た。皆フードを目深に、胸元に<b>逆さの鍵</b>の紋。囁きが壁越しに聞こえる——『扉は開かれる。降臨は近い』と。<br>調べてはならぬと頭では分かっている。だが私は司書だ。<b>知らずにいる</b>ことの方が、恐ろしい」<br><br>頁はそこで途切れている。",
+    a:{label:"日記を手元に置き、続きを探す",fx:r=>{flags.cult=1;gainItem("diary1");if(route)res.lore+=4;
+       return "📓 第一頁を懐に収めた。続きは——酒場か祈りの場に隠されている気がする";}},
+    b:{label:"燃やして忘れる",fx:r=>{persShift({tradition:-4});
+       return "🔥 日記は灰になった。だが灰の中で、逆さの鍵の紋だけが燃え残っていた……（この物語はもう追えない）";}}},
+  diary2:{rooms:["tavern","chapel","monastery","brewery"],once:true,cond:()=>flags.cult===1,
+    t:"酒樽の裏の続き",ico:"📓",
+    txt:"床板の浮いた隙間に、見覚えのある黒い紙片。<b>第二頁</b>だ。<br><br>「集いは増えている。パン屋の寡婦、皮なめしの親方——そして驚くべきことに、聖堂の輔祭までもが鍵の紋を下げていた。彼らは飢えても怒らず、ただ微笑む。『降臨の暁には、すべて満たされる』と。<br>施しのパンに、彼らは小さな紙を忍ばせて配る。『汝の鍵は逆さに挿せ。さすれば開かぬ扉なし』<br>……教義は優しい顔をしている。それが一番、きな臭い」",
+    a:{label:"頁を集め、さらに追う",fx:r=>{flags.cult=2;gainItem("diary2");if(route)res.lore+=4;
+       return "📓 第二頁を得た。次の手掛かりは——日の射さぬ場所。地の底だ";}},
+    b:{label:"ここで手を引く",fx:r=>{flags.cult=0;
+       return "🚪 知らぬが仏ということもある。だが夜、窓の外をフードの列が静かに通り過ぎた……（物語は途絶えた）";}}},
+  diary3:{rooms:["dungeon","mine","quarry","treasury","mushroom"],once:true,cond:()=>flags.cult===2,
+    t:"岩壁に塗り込められた最終頁",ico:"📓",
+    txt:"湿った岩壁の漆喰の下から、油紙に包まれた<b>第三頁</b>。筆跡は乱れている。<br><br>「見つけた。奴らの聖堂は地の底——古い水路の合流口だ。祭壇に据えられていたのは空の<b>玉座</b>。『降臨された神がお座りになる器』だという。<br>違う。あれは器などではない。あの玉座の寸法は、<b>人間の子供</b>のものだ。次の新月、彼らは『器を満たす』と言っていた。<br>もし私が戻らねば、これを読んだ貴方に託す。<b>新月の夜、水路の合流口へ</b>。——司書 アルノー」<br><br>日記は、ここで終わっている。アルノーの名は、十年前の失踪者名簿にあった。",
+    a:{label:"新月の夜に備える",fx:r=>{flags.cult=3;gainItem("diary3");
+       return "📓 すべての頁が揃った。新月は近い——騎士団に内々の達しを出した（まもなく決断の時が来る）";}},
+    b:{label:"今夜のうちに水路を埋める（-200G）",fx:r=>{res.gold-=200;flags.cult=0;flags.cultDone=true;allHomes(-3);
+       return "🧱 合流口は石で塞がれた。集会は散ったようだ。だが「器」が誰だったのか、確かめる勇気はなかった……";}}},
+  // ==== 単発の発見 ====
+  dustybook:{rooms:["university","magetower","printing"],once:false,cond:()=>true,
+    t:"埃まみれの写本",ico:"📚",
+    txt:"棚の裏に落ちていた写本。表紙の文字は掠れているが、中身は几帳面な手による天文と薬草の覚書だ。",
+    a:{label:"読み込んで写しを取る",fx:r=>{if(route)res.lore+=8;return "📚 良書だった。"+(route?loreName()+"+8":"学者たちが喜んだ");}},
+    b:{label:"好事家に売る",fx:r=>{res.gold+=120;return "🪙 +120G。「いい買い物だ」と好事家は頬を緩めた";}}},
+  oldcoin:{rooms:["market","tavern","brewery"],once:true,cond:()=>true,
+    t:"床下の古銭",ico:"🪙",
+    txt:"床板の下から、緑青を吹いた古い金貨が一枚。三百年前の刻印——擦り切れるほど誰かが握りしめた跡がある。",
+    a:{label:"御守りとして持ち歩く",fx:r=>{gainItem("luckycoin");return "🪙 掌に収まりの良い銭だ。なんとなく、商運が向いてくる気がする";}},
+    b:{label:"収集商に売る",fx:r=>{res.gold+=200;return "🪙 希少な刻印だったらしい。+200G";}}},
+  bonecharm:{rooms:["dungeon","mine","quarry","mushroom"],once:true,cond:()=>true,
+    t:"骨の御守り",ico:"🦴",
+    txt:"岩の隙間に、糸で吊るされた小さな骨細工。坑夫よりずっと古い時代の手仕事だ。地の民の魔除けだろうか。",
+    a:{label:"持ち帰る",fx:r=>{gainItem("bonecharm");return "🦴 骨の護符を腰に下げた。夜道が、少しだけ怖くなくなった";}},
+    b:{label:"そっと埋め直し、祈る",fx:r=>{res.faith=Math.min(999,res.faith+10);return "🙏 古き眠りに祈りを捧げた。信仰+10";}}},
+  relicshard:{rooms:["chapel","monastery","cathedral"],once:true,cond:()=>true,
+    t:"床石の下の聖遺物",ico:"✨",
+    txt:"敷石の継ぎ目が一箇所だけ新しい。剥がすと、絹に包まれた指骨——台座の銘は『聖アルディーナの右手の小指』。",
+    a:{label:"祭壇に奉る",fx:r=>{res.faith=Math.min(999,res.faith+20);allHomes(4);
+       return "✨ 聖遺物が祭壇に輝いた。信仰+20。巡礼の噂はすぐ広まるだろう";}},
+    b:{label:"行商の聖物商に売る",fx:r=>{res.gold+=250;persShift({greed:-5,mercy:-2});
+       return "💰 +250G。……夜、礼拝堂の蝋燭が一斉に消えたのは、風のせいだと思いたい";}}},
+  brewnote:{rooms:["brewery","tavern"],once:true,cond:()=>true,
+    t:"梁に挟まれた古い覚書",ico:"📜",
+    txt:"梁の上に油紙の束。百年前の醸造長の覚書だ。「秋の蜂蜜を一匙、月の満ちる夜に仕込むべし」——失われた古式の製法が事細かに記されている。",
+    a:{label:"今夜から試す",fx:r=>{gainItem("brewrecipe");return "🍻 仕込みの香りが変わった。これは——売れる";}},
+    b:{label:"大学に寄贈する",fx:r=>{if(route)res.lore+=8;res.fame=Math.min(9999,res.fame+5);
+       return "🎓 学者たちが食いついた。"+(route?loreName()+"+8・":"")+"名声+5";}}},
+  loveletter:{rooms:["quarters","bighouse"],once:false,cond:()=>true,
+    t:"壁の隙間の恋文",ico:"💌",
+    txt:"壁の隙間から黄ばんだ恋文。「市場の鐘が三つ鳴る頃、井戸の傍で待つ。——G」差出人も宛先も、もうこの城にいるかどうか。",
+    a:{label:"持ち主を探してやる",fx:r=>{allHomes(6);
+       return "💌 文の主は、市場の老パン屋だった。「届けてくれたか……五十年越しだ」城下にあたたかい噂が広がった";}},
+    b:{label:"そっと壁に戻す",fx:r=>{persShift({mercy:+3});return "🤫 恋文は壁の中へ。秘密は秘密のままが美しいこともある";}}},
+  dragonscale:{rooms:["roost","magetower"],once:true,cond:()=>route==="fantasy",
+    t:"抜け落ちた竜の鱗",ico:"🐉",
+    txt:"巣の隅に、手のひら大の鱗が一枚。光の角度で緑から金へ色を変える。竜は素知らぬ顔で寝ている——くれてやる、ということらしい。",
+    a:{label:"小盾に打ち直す",fx:r=>{gainItem("dragonshield");return "🛡 竜鱗の小盾が完成した。矢どころか呪いも弾きそうだ";}},
+    b:{label:"高値で売る",fx:r=>{res.gold+=400;return "💰 +400G。……翌朝、竜がこちらを見る目が少し冷たい気がする";}}},
+  stargazer:{rooms:["magetower","university"],once:true,cond:()=>true,
+    t:"星図の写し",ico:"🌌",
+    txt:"天井裏から筒に入った星図。今の星の並びと見比べると——一箇所だけ、<b>今夜の空に存在しない星</b>が描き込まれている。",
+    a:{label:"観測して確かめる",fx:r=>{if(route)res.lore+=12;wvShift({fantasy:+4});
+       return "🌌 その位置の空が、一瞬だけ瞬いた。記録した。"+(route?loreName()+"+12":"");}},
+    b:{label:"額装して飾る",fx:r=>{res.fame=Math.min(9999,res.fame+8);return "🖼 来客が必ず足を止める名品になった。名声+8";}}},
+};
+// 毎日の終わりに、どこかの部屋に✨を仕込む
+function spawnDiscoveries(){
+  if(Object.keys(discoveries).length>=2)return;
+  const cultNext=flags.cult===1?"diary2":flags.cult===2?"diary3":null;
+  const chance=cultNext?0.6:0.22;          // 教団の続きは見つかりやすい
+  if(Math.random()>chance)return;
+  const taken=new Set(Object.values(discoveries));
+  const pool=Object.entries(DISCOVERIES).filter(([k,d])=>{
+    if(taken.has(k))return false;
+    if(d.once&&flags["dx_"+k])return false;
+    if(cultNext&&k!==cultNext)return false;          // 続きを最優先
+    try{if(d.cond&&!d.cond())return false;}catch(_){return false;}
+    return Object.values(rooms).some(r=>r.active&&d.rooms.includes(r.type)&&!discoveries[r.id]);
+  });
+  if(!pool.length)return;
+  const [k,d]=pool[Math.floor(Math.random()*pool.length)];
+  const cand=Object.values(rooms).filter(r=>r.active&&d.rooms.includes(r.type)&&!discoveries[r.id]);
+  const room=cand[Math.floor(Math.random()*cand.length)];
+  discoveries[room.id]=k;
+}
+function runDiscovery(roomId){
+  const k=discoveries[roomId];const d=DISCOVERIES[k];
+  if(!d)return;
+  delete discoveries[roomId];
+  if(d.once)flags["dx_"+k]=true;
+  const where=rooms[roomId]&&ROOMS[rooms[roomId].type]?ROOMS[rooms[roomId].type].name:"";
+  hideInfo();
+  pauseForModal();
+  beep(740,.1,"triangle",.05);beep(990,.14,"triangle",.05,.1);
+  showScroll(`
+    <h2>${d.ico} ${d.t}</h2>
+    <div class="ev-speaker">🔍 発見 — ${where}にて</div>
+    <div>${d.txt}</div>
+    <div class="choice-btns">
+      <button id="dxA">${d.a.label}</button>
+      <button id="dxB" class="alt">${d.b.label}</button>
+    </div>
+  `);
+  const pick=c=>{
+    const msg=c.fx(rooms[roomId]);
+    closeScroll();
+    if(msg)toast(msg);
+    recomputeHappiness();updateHUD();saveGame();
+  };
+  document.getElementById("dxA").onclick=()=>pick(d.a);
+  document.getElementById("dxB").onclick=()=>pick(d.b);
+}
+
 let lastEventDay=-3;
 function maybeChoiceEvent(){
   if(modalOpen)return false;
@@ -1465,7 +1626,10 @@ function maybeChoiceEvent(){
   if(Math.random()>.3)return false;
   const pool=EVENTS.filter(e=>{try{return e.cond();}catch(_){return false;}});
   if(!pool.length)return false;
-  const ev=pool[Math.floor(Math.random()*pool.length)];
+  // 重み付き抽選 (wt: 既定1。珍しい出来事ほど小さく、日常ほど大きく)
+  let tot=0;for(const e of pool)tot+=(e.wt||1);
+  let roll=Math.random()*tot, ev=pool[0];
+  for(const e of pool){roll-=(e.wt||1);if(roll<=0){ev=e;break;}}
   lastEventDay=day;
   showEvent(ev);
   return true;
@@ -1661,6 +1825,7 @@ function demolish(c,f){
   res.stone=Math.min(999,res.stone+Math.floor((d.cost.s||0)/2));
   res.iron=Math.min(999,res.iron+Math.floor((d.cost.i||0)/2));
   for(let i=0;i<r.w;i++)delete grid[key(r.c+i,r.f)];
+  delete discoveries[r.id];
   delete rooms[r.id];
   if(r.type==="throne")throneBuilt=Object.values(rooms).some(x=>x.type==="throne");
   if(r.type==="skyhall")skyBuilt=Object.values(rooms).some(x=>x.type==="skyhall");
@@ -2379,6 +2544,14 @@ function drawRoom(r,night,sIdx){
     ctx.fillStyle="#ffcf5c";ctx.font="bold 13px sans-serif";ctx.textAlign="center";
     ctx.fillText(r.blockedSky?"🌱":"⚠",x+w/2,y+h/2+5);ctx.textAlign="left";
   }
+  // ✨ 何かが隠れている部屋 (👆調べるで発見イベント)
+  if(discoveries[r.id]){
+    const tw=.5+.5*Math.sin(perfNow*.005+r.id*3);
+    ctx.globalAlpha=.55+.45*tw;
+    ctx.font="11px serif";ctx.textAlign="center";
+    ctx.fillText("✨",x+w-8,y+9-tw*2);
+    ctx.textAlign="left";ctx.globalAlpha=1;
+  }
 }
 
 function drawBattlements(night,winter){
@@ -2685,6 +2858,11 @@ function renderInfo(){
       <button id="ipInvest">${flags.invest?"📈 運用中(あと"+Math.max(0,flags.invest.due-day)+"日)":"📈 投資 -500G"}</button>
     </div>
     <div style="font-size:10px;color:#6e5b39;margin-top:3px;">融資: 2,000G即金・計2,600Gを130G/日で返済／投資: 約2季節で350〜1,100Gに化ける</div>`:"";
+  // ✨ 発見イベント (この部屋に何かが隠れている)
+  const discUI=discoveries[r.id]
+    ?`<button id="ipDisc" style="width:100%;margin-top:7px;padding:7px;border-radius:4px;cursor:pointer;
+        background:linear-gradient(135deg,#fff3c4,#ffe08a);border:1px solid #c9a227;color:#7a5a00;font-weight:bold;">
+        🔍 ✨ 何かが目に留まった——調べてみる</button>`:"";
   ip.innerHTML=`
     <h3>${d.ico} ${d.name}</h3>${warn}
     <div class="row"><span>状態</span><b style="color:${r.active?"#5e8a3c":"#b8412e"}">${r.active?"稼働中":"⚠ 停止中"}</b></div>
@@ -2692,6 +2870,7 @@ function renderInfo(){
     <div class="happybar"><div style="width:${r.happy}%;background:${hcol}"></div></div>`:""}
     ${rows}
     <div style="margin-top:6px;font-size:11px;color:#6e5b39;">${d.desc||""}</div>
+    ${discUI}
     ${bankUI}
     <div class="ip-btns">
       <button id="ipClose">閉じる</button>
@@ -2699,6 +2878,7 @@ function renderInfo(){
     </div>`;
   document.getElementById("ipClose").onclick=hideInfo;
   document.getElementById("ipDem").onclick=()=>{demolish(r.c,r.f);};
+  if(discoveries[r.id])document.getElementById("ipDisc").onclick=()=>runDiscovery(r.id);
   if(r.type==="bank"&&r.active){
     document.getElementById("ipLoan").onclick=()=>{
       if(flags.debt>0){toast("🏦 まずは今の借入を完済されよ（残 "+fmt(flags.debt)+"G）","bad");return;}
@@ -2878,6 +3058,11 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
       ?`${e.ico} <b>${e.name}</b><br>`
       :`<span style="color:#9a8458">❔ ${e.hint}</span><br>`;
   }
+  // 蒐集の品
+  const invKeys=Object.keys(inventory).filter(k=>ITEMS[k]);
+  const invHtml=invKeys.length
+    ?invKeys.map(k=>`${ITEMS[k].ico} <b>${ITEMS[k].name}</b> <small style="color:#9a8458">${ITEMS[k].desc}</small>`).join("<br>")
+    :`<span style="color:#9a8458">まだ何もない——城のどこかで✨が光ったら、👆で部屋を調べてみよ</span>`;
   // 領民の階級
   const cls=classBreakdown();
   let clsHtml="";
@@ -2920,6 +3105,8 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     <div class="retainer-list"><b>家臣団：</b><br>${retHtml}</div>
     <hr>
     <div class="retainer-list"><b>年代記の結末（${endN} / ${Object.keys(ENDING_DEFS).length}）：</b><br>${endHtml}</div>
+    <hr>
+    <div class="retainer-list"><b>蒐集の品（${invKeys.length}）：</b><br>${invHtml}</div>
     <hr>
     <div class="center"><small>操作：ドラッグで視点移動／👆で部屋を調べる／通路・階段はドラッグで連続配置<br>
     🔍 右の＋－ボタン・マウスホイール(ピンチ)・二本指で拡大縮小。寄ると住人の暮らしが見える<br>
@@ -2974,6 +3161,7 @@ async function saveGame(){
     const data={res,day,rankIdx,maxRankSeen,nextRoomId,throneBuilt,skyBuilt,won,
       route,sageShown,milestones,undergroundEnd,lastEventDay,retEvo,
       personality,worldView,gameMode,scenarioCh,endings,chains,flags,happyStreak,miseryStreak,era,
+      discoveries,inventory,
       savedAt:Date.now(),
       rooms:Object.values(rooms).map(r=>({id:r.id,type:r.type,f:r.f,c:r.c,w:r.w,occ:r.occ}))};
     await window.storage.set("castle_chronicle_v2",JSON.stringify(data));
@@ -3017,6 +3205,10 @@ async function loadGame(){
       scenarioCh=d.scenarioCh||1;
       endings=d.endings||{};chains=d.chains||{};flags=d.flags||{};
       happyStreak=d.happyStreak||0;miseryStreak=d.miseryStreak||0;
+      inventory=d.inventory||{};
+      discoveries={};
+      for(const rid in (d.discoveries||{}))      // 撤去済みの部屋の✨は捨てる
+        if(rooms[rid]&&DISCOVERIES[d.discoveries[rid]])discoveries[rid]=d.discoveries[rid];
       if(undergroundEnd&&!endings.under)endings.under=true; // 旧実績を結末に引き継ぐ
       if(won&&!endings.sky)endings.sky=true;
       return true;
