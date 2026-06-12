@@ -93,7 +93,9 @@
     font-size:14px;line-height:1.8;}
   .scroll h2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;text-align:center;font-size:21px;
     letter-spacing:.13em;color:var(--crimson);margin-bottom:8px;}
-  .scroll .seal{position:absolute;right:18px;bottom:14px;width:44px;height:44px;border-radius:50%;
+  /* 印は文書の末尾に署名として捺す (絶対配置だと長い巻物のスクロール途中に浮くため) */
+  .scroll .seal{width:44px;height:44px;border-radius:50%;
+    margin:14px 6px 0 auto;flex-shrink:0;
     background:radial-gradient(circle at 35% 30%,#c44, #7e1f1f);box-shadow:0 2px 5px rgba(0,0,0,.4);
     display:flex;align-items:center;justify-content:center;color:#ffe1c0;font-size:19px;font-weight:bold;
     font-family:serif;transform:rotate(-12deg);pointer-events:none;}
