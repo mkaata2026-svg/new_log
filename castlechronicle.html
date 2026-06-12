@@ -298,7 +298,7 @@ const ROOMS = {
   throne:  {name:"王座の間", ico:"👑", w:6, cost:{g:12000,s:40},rank:4, minF:5, maxF:F_MAX,
             desc:"6階以上に築く王の間。住民1人につき0.6Gの税。王城昇格の必須条件。"},
   skyhall: {name:"天空の間", ico:"🌟", w:6, cost:{g:30000,s:80},rank:5, minF:40, maxF:F_MAX,
-            desc:"雲の上、41階以上に築く伝説の間。天空城郭への最後の鍵。"},
+            desc:"伝説の間（幻想の道:41階以上／史実の道:26階以上の大聖堂の尖塔）。天空城郭への最後の鍵。"},
 };
 const TOOL_ORDER = ["select","demolish","corridor","stairs","lift","mlift","farm","quarters","bighouse","market","workshop","quarry","blacksmith","tavern","barracks","chapel","treasury","dungeon","noble","university","bank","magetower","guild","roost","throne","skyhall"];
 
@@ -327,6 +327,104 @@ let won = false;
 let modalOpen = false;
 let dragon = null;                // 竜の飛翔演出
 let retEvo = {};                  // 家臣の進化 {家臣idx: 進化キー} (セーブ対象)
+
+// ---- 仕様書 v2.0 準拠の拡張状態 ----
+// 領主性格 (0=左 ⟷ 100=右): tyranny独裁⟷民主 / mercy冷酷⟷慈悲 / greed搾取⟷寛容
+//                            tradition保守⟷革新 / control過干渉⟷放任
+let personality = {tyranny:50, mercy:50, greed:50, tradition:50, control:50};
+// 世界観パラメーター。選択の積み重ねで80に達すると道が自動で定まる
+let worldView = {realism:50, fantasy:50};
+let gameMode = null;              // {kind:"scenario"|"endless"|"creative", diff:"easy"|"normal"|"hard"|"nightmare"}
+let scenarioCh = 1;               // シナリオモードの現在章 (1-5, 6=完結)
+let endings = {};                 // 達成した結末 {key:true}
+let chains = {};                  // 連鎖イベント進行 {id:{stage,nextDay}}
+let flags = {};                   // 各種フラグ {mercUntil, prophecyShield, guildCharter, parliament, shadowPact}
+let happyStreak = 0;              // 高幸福の連続日数 (人民の英雄用)
+let miseryStreak = 0;             // 低幸福の連続日数 (暴君の最期用)
+
+const isCreative = ()=>gameMode&&gameMode.kind==="creative";
+const isScenario = ()=>gameMode&&gameMode.kind==="scenario";
+function diffMul(){
+  const d=gameMode&&gameMode.diff;
+  if(d==="easy")     return {inc:1.25, raid:0.6, food:0.85};
+  if(d==="hard")     return {inc:0.8,  raid:1.5, food:1.15};
+  if(d==="nightmare")return {inc:0.7,  raid:2.0, food:1.3};
+  return {inc:1, raid:1, food:1};
+}
+
+// ---- 領主性格システム ----
+const PERS_AXES=[
+  ["tyranny","独裁","民主"],["mercy","冷酷","慈悲"],["greed","搾取","寛容"],
+  ["tradition","保守","革新"],["control","過干渉","放任"],
+];
+const PERS_TYPES={
+  tyrant:  {name:"恐怖の独裁者", ico:"👁", desc:"恐怖統治。全収入+12%・治安+2、だが領民の心は冷える(幸福-6)"},
+  father:  {name:"人民の父",     ico:"🤲", desc:"高幸福(+8)・移住者が増える。だが施しに金がかかる(支出+15%)"},
+  merchant:{name:"商業王",       ico:"🪙", desc:"商いの収入+18%。だが学芸は後回し(知識/魔力-15%)"},
+  artist:  {name:"狂気の芸術家", ico:"🎨", desc:"礼拝堂の癒し倍増・幸福+4。実利は二の次(収入-8%)"},
+  puppeteer:{name:"影の操り人形師",ico:"🕴", desc:"凶事の被害をさらに4割減。だが影の維持費(支出+20%)"},
+  balanced:{name:"中庸の領主",   ico:"⚖", desc:"特に偏りなし。どの道も選べる"},
+};
+function persShift(d){           // d = {tyranny:+5, ...}
+  for(const k in d)if(k in personality)personality[k]=clamp(personality[k]+d[k],0,100);
+}
+function wvShift(d){             // d = {realism:+5, fantasy:-3}
+  for(const k in d)if(k in worldView)worldView[k]=clamp(worldView[k]+d[k],0,100);
+}
+function persType(){
+  const p=personality;
+  if(p.tyranny<=30&&p.mercy<=40)return "tyrant";
+  if(p.mercy>=70&&p.greed>=60)return "father";
+  if(p.greed<=30&&p.mercy>=40)return "merchant";
+  if(p.tradition>=75)return "artist";
+  if(p.control<=25&&p.tyranny<=45)return "puppeteer";
+  return "balanced";
+}
+
+// ---- マルチエンディング (年代記の結末) ----
+const ENDING_DEFS={
+  sky:     {name:"天空の支配者", ico:"🌟", hint:"天空城郭に到達する"},
+  under:   {name:"地底の皇帝",   ico:"⛏", hint:"地下10階の最深部に部屋を築く"},
+  hero:    {name:"人民の英雄",   ico:"🕊", hint:"人口250以上で平均幸福90を1季節保つ"},
+  tyrant:  {name:"暴君の最期",   ico:"🔥", hint:"恐怖の独裁者として領民を絶望させる"},
+  commerce:{name:"商業帝国",     ico:"🏦", hint:"金貨20万を蓄える"},
+  god:     {name:"神になる",     ico:"✨", hint:"幻想の道・天空の間・魔力400で神と対話する"},
+  culture: {name:"文化の極み",   ico:"🎭", hint:"礼拝堂・酒場・貴族邸宅・学術施設を揃え芸術の都とする"},
+  babel:   {name:"バベルの呪い", ico:"🗼", hint:"46階より高くへ——言葉の崩れる高みへ"},
+  time:    {name:"時を超える者", ico:"⏳", hint:"50年を生き抜く"},
+  truend:  {name:"真なる年代記", ico:"📕", hint:"他のすべての結末を見届ける"},
+};
+const ENDING_TEXTS={
+  sky:"雲を貫く城を、地上の誰もが見上げている。年代記の表紙には、こう記された——「彼は天空の支配者であった」と。",
+  under:"日の光の届かぬ最深部。坑夫たちは囁く。「我らの殿は、地の底さえ統べるおつもりだ」",
+  hero:"領民は誰も城を去らない。去る理由がないからだ。市場の老婆は言う。「ここで生まれて、よかった」——これ以上の戴冠があろうか。",
+  tyrant:"恐怖は城を強くした。だが、玉座の間に独り座すそなたに、祝杯を掲げる者はもういない。年代記のこの頁は、誰にも読まれぬまま閉じられた。",
+  commerce:"大陸の金の流れは、すべてこの城を経由する。王たちは剣でなく、為替手形でそなたに頭を下げる。",
+  god:"光が玉座を包んだ。人としての名は薄れ、領民は新しい名で祈りを捧げる。城は、神殿になった。",
+  culture:"歌と絵画と書物の都。武勲では覇者に並べずとも、千年後に語られるのはこの城の芸術である。",
+  babel:"高みに達した朝、領民の言葉が乱れ始めた。職人は異国の言葉で叫び、詩人は誰にも読めぬ詩を書く。天に近づきすぎた塔の、これが代償である。",
+  time:"50回目の春。最初の領民はもういないが、その孫たちが同じ丘で麦を蒔く。そなたは、時を超えた。",
+  truend:"すべての結末を見届けた者よ。年代記は完結した——だが城の灯は、これからも領民とともに灯り続ける。",
+};
+
+// ---- シナリオモード「王国の興亡」 ----
+const SCENARIO_CH={
+  1:{t:"第1章　辺境の砦", goal:"人口30を達成し『砦』へ昇格せよ",
+     chk:()=>population()>=30, reward:{gold:500},
+     open:"王命により、辺境の丘に砦を築くこととなった。まずは人を集めよ。"},
+  2:{t:"第2章　十字軍の拠点", goal:"兵舎2棟・治安8以上・人口110を達成せよ",
+     chk:()=>countType("barracks")>=2&&security()>=8&&population()>=110, reward:{gold:800},
+     open:"聖地への遠征軍が、この城を中継拠点に選んだ。武の備えを示せ。"},
+  3:{t:"第3章　黒死病の時代", goal:"礼拝堂を建て、人口240を達成せよ",
+     chk:()=>countType("chapel")>=1&&population()>=240, reward:{gold:1200},
+     open:"南から疫病の噂が忍び寄る。祈りの場と衛生、そして人の力が試される。"},
+  4:{t:"第4章　百年戦争", goal:"治安15以上・人口420を達成せよ",
+     chk:()=>security()>=15&&population()>=420, reward:{gold:2000},
+     open:"大国同士の長い戦争が始まった。戦火の時代、城壁の高さだけが領民を守る。"},
+  5:{t:"第5章　ルネサンスの夜明け", goal:"知識/魔力150・王座の間・人口650を達成せよ",
+     chk:()=>res.lore>=150&&throneBuilt&&population()>=650, reward:{gold:5000},
+     open:"暗い時代の果てに、新しい光が差し込む。学芸の都として、歴史に名を刻め。"},
+};
 
 let cam = {x: GATE_C*TILE - 300, y: WORLD_H - 620};
 
@@ -422,9 +520,15 @@ function recomputeHappiness(){
         for(const id2 in rooms){const d=rooms[id2];
           if(d.type==="dungeon"&&Math.abs(d.f-r.f)<=1&&Math.abs(d.c-r.c)<=6){h-=10;break;}}
       }
+      const pt=persType();
       for(const id2 in rooms){const ch=rooms[id2];
         if(ch.type==="chapel"&&ch.active&&Math.abs(ch.f-r.f)<=1&&
-           Math.abs((ch.c+ch.w/2)-(r.c+r.w/2))<=ROOMS.chapel.aura+3){h+=16;break;}}
+           Math.abs((ch.c+ch.w/2)-(r.c+r.w/2))<=ROOMS.chapel.aura+3){
+          h+=(pt==="artist"?32:16);break;}}   // 狂気の芸術家: 美の癒し倍増
+      if(pt==="tyrant")h-=6;
+      else if(pt==="father")h+=8;
+      else if(pt==="artist")h+=4;
+      if(flags.parliament)h+=3;               // 議会の誕生
       if(r.f!==0){
         let near=false;
         for(let c=0;c<COLS;c++){
@@ -460,6 +564,8 @@ function security(){
   if(hasRet(1))s+=(retEvo[1]==="holy"?4:retEvo[1]==="dark"?3:2); // ローランド卿 (進化で強化)
   if(retEvo[4]==="mbuild")s+=1;       // 魔法建築師の障壁
   if(route==="real"&&milestones.m3)s+=3; // 火薬
+  if(flags.mercUntil&&day<=flags.mercUntil)s+=5; // 傭兵団
+  if(persType()==="tyrant")s+=2;      // 恐怖は秩序を生む
   return s;
 }
 
@@ -469,9 +575,11 @@ function dailyTick(){
   const pop=population();
   const sIdx=seasonIdx(), season=SEASONS[sIdx];
   const commerceF=clamp(pop/45,0.3,1.8)*(sIdx===3?0.85:1);
-  const loreMul=hasRet(3)
+  let loreMul=hasRet(3)
     ?(retEvo[3]==="sage"?1.5:retEvo[3]==="witch"?(route==="fantasy"?1.6:1.4):1.25)
     :1;
+  const pt=persType(), dm=diffMul();
+  if(pt==="merchant")loreMul*=0.85;   // 商業王: 学芸は後回し
   let foodGain=0;
 
   for(const id in rooms){
@@ -480,10 +588,13 @@ function dailyTick(){
     if(d.pop){
       if(r.happy>=60&&r.occ<d.pop)r.occ+=Math.random()<.85?(r.type==="bighouse"?2:1):0;
       else if(r.happy<40&&r.occ>0&&Math.random()<.6)r.occ--;
+      if(pt==="father"&&r.happy>=60&&r.occ<d.pop&&Math.random()<.35)r.occ++; // 人民の父: 移住者増
       r.occ=clamp(r.occ,0,d.pop);
     }
     if(d.rent)income+=d.rent*r.occ*(r.happy/100+.3);
-    if(d.base)income+=d.base*commerceF*(0.5+r.happy/150);
+    if(d.base)income+=d.base*commerceF*(0.5+r.happy/150)
+      *(pt==="merchant"?1.18:1)
+      *(flags.guildCharter&&(r.type==="workshop"||r.type==="blacksmith")?1.2:1);
     if(d.quest)income+=rnd(40,140)-d.base*commerceF*0.3; // ギルドはクエスト変動分を上乗せ
     if(d.upkeep)expense+=d.upkeep;
     if(d.food)foodGain+=d.food*season.farm;
@@ -503,7 +614,8 @@ function dailyTick(){
 
   // 食料
   res.food=Math.min(2000,res.food+foodGain);
-  const need=pop*0.12;
+  const need=pop*0.12*dm.food;
+  if(isCreative()){res.food=Math.max(res.food,2000);}
   if(res.food>=need)res.food-=need;
   else{
     res.food=0;
@@ -518,16 +630,138 @@ function dailyTick(){
     const spyG=Math.round(rnd(40,110));res.gold+=spyG;
     toast("🎭 シルヴィアの諜報網が機密を売り捌いた +"+spyG+"G");
   }
+  // 領主の性格と難易度
+  income*=dm.inc;
+  if(pt==="tyrant")income*=1.12;
+  else if(pt==="artist")income*=0.92;
+  if(pt==="father")expense*=1.15;
+  else if(pt==="puppeteer")expense*=1.2;
+  if(pt==="puppeteer"&&Math.random()<.15){
+    const g=Math.round(rnd(30,90));res.gold+=g;
+    toast("🕴 影の手の者が、どこかの帳簿から金を抜いてきた +"+g+"G");
+  }
   const net=Math.round(income-expense);
   res.gold+=net;lastIncome=net;
+  if(isCreative())res.gold=Math.max(res.gold,999999);
   if(net!==0)sndCoin();
   toast((net>=0?"📈 本日の収支 +":"📉 本日の収支 ")+fmt(net)+"G　🍞"+(foodGain?"+"+Math.round(foodGain):"±0"),net>=0?"gold":"bad");
 
+  if(flags.mercUntil&&day===flags.mercUntil+1){
+    delete flags.mercUntil;
+    toast("🛡 傭兵団の契約期間が終わり、彼らは次の戦場へ去った");
+  }
   checkMilestones();
+  chainTick();
   if(!maybeChoiceEvent())randomEvent(pop);
   checkRank(pop);
   recomputeHappiness();
+  trackStreaks(pop);
+  checkEndings(pop);
+  scenarioTick();
   saveGame();
+}
+
+// ---------- 幸福ストリーク追跡 (人民の英雄 / 暴君の最期) ----------
+function avgHappy(){
+  let n=0,sum=0;
+  for(const id in rooms){const r=rooms[id];
+    if(ROOMS[r.type]&&(ROOMS[r.type].pop||ROOMS[r.type].rent)){n++;sum+=r.happy;}}
+  return n?sum/n:0;
+}
+function trackStreaks(pop){
+  const h=avgHappy();
+  happyStreak=(h>=90&&pop>=250)?happyStreak+1:0;
+  miseryStreak=(h<=25&&pop>=80&&persType()==="tyrant")?miseryStreak+1:0;
+}
+
+// ---------- マルチエンディング判定 ----------
+function unlockEnding(k){
+  if(endings[k])return;
+  endings[k]=true;
+  showEndingScroll(k);
+  // true END: 他のすべてを見届けたか
+  if(!endings.truend){
+    const rest=Object.keys(ENDING_DEFS).filter(x=>x!=="truend");
+    if(rest.every(x=>endings[x]))setTimeout(()=>unlockEnding("truend"),800);
+  }
+  saveGame();
+}
+function showEndingScroll(k){
+  const e=ENDING_DEFS[k];
+  pauseForModal();
+  (k==="tyrant"||k==="babel")?beep(110,.5,"sawtooth",.07):sndFanfare();
+  const got=Object.keys(endings).length;
+  showScroll(`
+    <h2>〜 年代記の結末 〜</h2>
+    <div class="big-rank">${e.ico} ${e.name} ${e.ico}</div>
+    <div class="chapter">${ENDING_TEXTS[k]}</div>
+    <div class="center" style="margin-top:8px"><small>結末 ${got} / ${Object.keys(ENDING_DEFS).length} を見届けた（📜心得で一覧）<br>ゲームはこの後も続けられる</small></div>
+    <button onclick="window.__closeScroll()">年代記に綴じる</button>
+  `);
+}
+function checkEndings(pop){
+  if(isCreative())return;                       // クリエイティブは記録外
+  if(modalOpen)return;                          // 別の巻物の上には重ねない (翌日再判定)
+  if(skyBuilt&&rankIdx>=RANKS.length-1)unlockEnding("sky");
+  if(undergroundEnd)unlockEnding("under");
+  if(happyStreak>=SEASON_LEN)unlockEnding("hero");
+  if(res.gold>=200000)unlockEnding("commerce");
+  if(yearNum()>=50)unlockEnding("time");
+  // 文化の極み: 礼拝堂+酒場+貴族邸宅+学術(大学or魔法塔)が揃い、文化施設が計8棟
+  const cul=countType("chapel")+countType("tavern")+countType("noble")
+           +countType("university")+countType("magetower");
+  if(countType("chapel")>=1&&countType("tavern")>=1&&countType("noble")>=1
+     &&(countType("university")>=1||countType("magetower")>=1)&&cul>=8)unlockEnding("culture");
+  // 暴君の最期: 絶望の1季節 → 反乱イベント
+  if(miseryStreak>=SEASON_LEN&&!endings.tyrant){
+    loseVillagers(0.25);res.gold=Math.max(0,res.gold-1000);
+    unlockEnding("tyrant");miseryStreak=0;
+  }
+  // バベルの呪い: 46階(f>=45)より高くに部屋を築く
+  if(!endings.babel)for(const id in rooms)if(rooms[id].f>=45){unlockEnding("babel");break;}
+  // 神になる: 専用イベントで提示 (showGodEvent)
+  if(!endings.god&&!flags.godAsked&&route==="fantasy"&&skyBuilt&&res.lore>=400&&!modalOpen)showGodEvent();
+}
+function showGodEvent(){
+  flags.godAsked=true;
+  pauseForModal();sndMystic();
+  showScroll(`
+    <h2>✨ 神との対話</h2>
+    <div class="center">天空の間の祭壇が光を放った。声が、頭の中に直接響く。<br><br>
+    「塔を築き、魔を究めし者よ。<br>人の衣を脱ぎ、こちら側へ来るか？」</div>
+    <div class="choice-btns">
+      <button id="evGodA">✨ 神性を受け入れる</button>
+      <button id="evGodB" class="alt">🌾 人として、領民と生きる</button>
+    </div>
+  `);
+  document.getElementById("evGodA").onclick=()=>{
+    closeScroll();persShift({control:+15});unlockEnding("god");
+  };
+  document.getElementById("evGodB").onclick=()=>{
+    closeScroll();allHomes(15);persShift({mercy:+10});
+    toast("🌾 光は静かに引いていった。領民の笑い声が、いつもより近くに聞こえる");
+    recomputeHappiness();saveGame();
+  };
+}
+
+// ---------- シナリオモード進行 ----------
+function scenarioTick(){
+  if(!isScenario()||scenarioCh>5)return;
+  const ch=SCENARIO_CH[scenarioCh];
+  if(!ch||modalOpen)return;
+  let ok=false;try{ok=ch.chk();}catch(_){}
+  if(!ok)return;
+  res.gold+=ch.reward.gold;
+  scenarioCh++;
+  pauseForModal();sndFanfare();
+  const next=SCENARIO_CH[scenarioCh];
+  showScroll(`
+    <h2>📯 ${ch.t}　達成！</h2>
+    <div class="center">王都より褒賞 <b>${fmt(ch.reward.gold)}G</b> が届いた。</div>
+    ${next?`<hr><div class="chapter"><b>📯 ${next.t}</b>${next.open}<br><br>目標：${next.goal}</div>`:
+      `<hr><div class="chapter"><b>🏆 シナリオ「王国の興亡」完結</b>辺境の砦は、十字軍と疫病と戦乱の時代を生き延び、ルネサンスの光の中に立っている。年代記の正史は、ここに完成した。——この先は、そなたの自由な治世である。</div>`}
+    <button onclick="window.__closeScroll()">承知した</button>
+  `);
 }
 
 // ---------- 発明／秘術マイルストーン ----------
@@ -553,10 +787,16 @@ function checkMilestones(){
 // ---------- 軽イベント（トースト） ----------
 function randomEvent(pop){
   const roll=Math.random();
-  const guard=hasRet(5)?(retEvo[5]==="shadow"?0.25:0.5):1; // シルヴィア (影の支配者=1/4)
-  if(roll<.07&&pop>20){
+  let guard=hasRet(5)?(retEvo[5]==="shadow"?0.25:0.5):1; // シルヴィア (影の支配者=1/4)
+  if(persType()==="puppeteer")guard*=0.6;                 // 影の操り人形師: 凶事さらに4割減
+  if(roll<.07*diffMul().raid&&pop>20){
     const sec=security();
     if(sec*45<pop){
+      if(flags.prophecyShield){
+        delete flags.prophecyShield;
+        toast("🌙 月の預言者の警句どおり夜盗が来たが、備えは万全。被害なし！");
+        return;
+      }
       const loss=Math.min(res.gold,Math.round((rnd(60,160)+pop*0.8)*guard));
       res.gold-=loss;
       toast("⚠️ 夜盗の襲撃！ "+fmt(loss)+"G を奪われた…（兵舎で治安を高めよう）","bad");
@@ -665,7 +905,274 @@ const EVENTS=[
       if(security()>=8){startDragon();return "⚔️ 騎士団の威容に竜は戦意を失い去った！ 武勇は大陸に轟いた";}
       res.gold-=600;allHomes(-8);startDragon();
       return "🔥 竜の尾の一撃で倉が吹き飛んだ… -600G。兵舎を増やすべきだ";}}},
+
+  // ================= 政治系 =================
+  {id:"fakedecree",t:"偽の勅令",ico:"📜",cond:()=>rankIdx>=2,
+   txt:"「王命である。直ちに金300を納めよ」——だが封蝋の紋章が、どこか粗い。",
+   a:{label:"従うふりをして出所を探る",ps:{control:-3},wv:{realism:+3},
+      fx:()=>{if(hasRet(5)){res.gold+=250;return "🎭 シルヴィアが偽造工房を急襲！ 偽勅令一味の資金250Gを押収した";}
+      return "🕵 探索は空振り。だが偽勅令はうやむやのうちに立ち消えた";}},
+   b:{label:"念のため納めておく（-300G）",ps:{tradition:-4,control:+2},
+      fx:()=>{res.gold-=300;return "💸 後日、本物の王の使者が首をかしげた。「……余は、そのような勅令を出しておらぬが？」";}}},
+  {id:"shadowcouncil",t:"影の議会",ico:"🕯",cond:()=>rankIdx>=3&&countType("noble")>=1,
+   txt:"貴族たちが夜ごと地下室に集い、領政を密かに談合しているという。",
+   a:{label:"踏み込んで解散させる",ps:{tyranny:-6,control:-4},
+      fx:()=>{res.gold+=200;allHomes(-4);return "⚔️ 密会を摘発し、罰金200Gを科した。貴族たちの視線が冷たい";}},
+   b:{label:"密かに耳を傾ける",ps:{tyranny:+4,control:+3},
+      fx:()=>{allHomes(5);return "👂 談合の中身は、案外まっとうな政策論だった。良い案はこっそり採用した";}}},
+  {id:"succession",t:"継承権争い",ico:"⚖",cond:()=>rankIdx>=3,
+   txt:"隣国で王が没し、長子派と末子派が継承を争っている。双方から支援の使者が来た。",
+   a:{label:"長子派を支援する（-400G）",ps:{tradition:-5},wv:{realism:+4},
+      fx:()=>{res.gold-=400;
+      if(Math.random()<.65){res.gold+=900;return "👑 長子派が勝利！ 新王より返礼900Gと友誼が届いた";}
+      return "🕯 末子派が勝った…支援の400Gは戻らない。国境は当面きな臭い";}},
+   b:{label:"どちらにも与しない",ps:{control:+4},
+      fx:()=>{return "🕊 中立を貫いた。どちらが勝っても、商いの道は開いている";}}},
+  {id:"parliament",t:"議会の誕生",ico:"🏛",cond:()=>personality.tyranny>=70&&rankIdx>=3&&!flags.parliament,
+   txt:"民主的な領政の評判を聞き、領民の代表たちが「議会の設立」を請願に来た。",
+   a:{label:"議会を設立する（-300G）",ps:{tyranny:+8,control:+5},wv:{realism:+5},
+      fx:()=>{res.gold-=300;flags.parliament=true;allHomes(8);
+      return "🏛 大陸でも稀な領民議会が誕生！ 全住居の幸福+3が続く。歴史が、この丘で動いた";}},
+   b:{label:"時期尚早と退ける",ps:{tyranny:-6},
+      fx:()=>{allHomes(-5);return "🚪 代表たちは肩を落として帰った。「いつか、必ず」";}}},
+  {id:"witchtrial",t:"魔女裁判の要求",ico:"🔥",cond:()=>route==="real"&&population()>100,
+   txt:"「東屋敷の薬師は魔女だ！」と群衆が騒いでいる。井戸が涸れたのは呪いだというのだ。",
+   a:{label:"裁判を開く",ps:{mercy:-7,tradition:-4},
+      fx:()=>{res.gold+=150;allHomes(-3);return "⚖️ 没収財産150G。だが薬師を失った冬、熱病に薬はなかった…";}},
+   b:{label:"「井戸が涸れたのは日照りだ」と一蹴",ps:{mercy:+5},wv:{realism:+6},
+      fx:()=>{res.lore+=4;return "📜 理性が迷信に勝った。薬師は礼にと薬草の知識を書き残した。"+loreName()+"+4";}}},
+  {id:"informers",t:"密告者の列",ico:"👁",cond:()=>persType()==="tyrant",
+   txt:"恐怖の統治は密告を生む。今朝も「隣人が殿の悪口を」と訴える者が列を成している。",
+   a:{label:"報奨金を出す（-100G）",ps:{tyranny:-5,mercy:-4},
+      fx:()=>{res.gold-=100;allHomes(-6);return "👁 城下は静まり返った。誰も、誰とも口をきかない";}},
+   b:{label:"密告制を廃止する",ps:{tyranny:+6,mercy:+5},
+      fx:()=>{allHomes(7);return "🕊 列は解散させた。城下に、少しずつ笑い声が戻ってくる";}}},
+
+  // ================= 経済系 =================
+  {id:"crash",t:"金融恐慌",ico:"📉",cond:()=>countType("bank")>=1||res.gold>8000,
+   txt:"大陸の大商会が破産し、信用不安が津波のように押し寄せてきた。取り付け騒ぎが起きている。",
+   a:{label:"公金で信用を支える（-600G）",ps:{greed:+5,control:-3},wv:{realism:+4},
+      fx:()=>{res.gold-=600;allHomes(4);return "🏦 「あの城の金庫は固い」——逃げ出した商人たちが、逆に集まってきた";}},
+   b:{label:"嵐が過ぎるのを待つ",ps:{control:+4,greed:-3},
+      fx:()=>{allHomes(-8);res.gold-=Math.min(res.gold,300);return "📉 市場は数日麻痺し、損失300G。庶民の蓄えが消えた";}}},
+  {id:"guildfound",t:"ギルド設立の請願",ico:"🛠",cond:()=>countType("workshop")>=2&&!flags.guildCharter&&rankIdx>=2,
+   txt:"職人たちが寄り合い、ギルド（同業組合）の設立認可を求めている。「品質はギルドが守ります」",
+   a:{label:"認可する（-200G）",ps:{tradition:+4,control:+4},wv:{realism:+4},
+      fx:()=>{res.gold-=200;flags.guildCharter=true;
+      return "🛠 ギルド憲章に調印！ 工房・鍛冶屋の稼ぎが2割増える";}},
+   b:{label:"却下する",ps:{control:-4,tyranny:-3},
+      fx:()=>{allHomes(-4);return "🚪 職人たちは無言で工房に戻った。槌の音が、今日は重い";}}},
+  {id:"saltright",t:"塩の専売権",ico:"🧂",cond:()=>rankIdx>=2,
+   txt:"豪商が「領内の塩の専売権を売ってほしい」と大金を積んできた。独占権——中世の錬金術である。",
+   a:{label:"売る（+400G）",ps:{greed:-6},
+      fx:()=>{res.gold+=400;allHomes(-5);return "🧂 400Gを得たが、塩の値は倍になった。台所から恨み節が聞こえる";}},
+   b:{label:"断り、市場を自由に保つ",ps:{greed:+5},
+      fx:()=>{allHomes(3);return "🧺 塩売りたちの呼び声は今日も賑やかだ";}}},
+  {id:"forgery",t:"贋作画商",ico:"🖼",cond:()=>countType("noble")>=1,
+   txt:"「大陸の巨匠の真筆です」と画商が絵を売り込みに来た。貴族たちは色めき立つが……筆致が怪しい。",
+   a:{label:"鑑定させてから買う（-50G）",wv:{realism:+3},ps:{control:-3},
+      fx:()=>{res.gold-=50;if(hasRet(3))return "📚 エレオノーラが一目で見抜いた。「これは贋作。ただし贋作師の腕は本物ですね」買わずに済んだ";
+      return Math.random()<.5?"🖼 真筆だった！ だが鑑定中に他の買い手に取られた…":"🎨 贋作と判明。50Gの鑑定料は安い勉強代だ";}},
+   b:{label:"即金で買う（-300G）",ps:{tradition:+4,control:+3},
+      fx:()=>{res.gold-=300;if(Math.random()<.35){allHomes(5);return "🖼 後年、真筆と判明！ 城の自慢の逸品となった";}
+      return "🎨 贋作だった……だが意外と領民に人気で、誰も真実を口にしない";}}},
+
+  // ================= 軍事系 =================
+  {id:"crusade",t:"十字軍参加の要請",ico:"✠",cond:()=>rankIdx>=3&&countType("barracks")>=1,
+   txt:"教皇庁の使者が来た。「聖地への遠征に、貴公の騎士団の参加を求める」",
+   a:{label:"騎士団を派遣する（-500G）",ps:{tradition:-4},wv:{realism:+5},
+      fx:()=>{res.gold-=500;
+      if(Math.random()<.55){res.gold+=1100;res.lore+=route?6:0;return "✠ 騎士団が凱旋！ 戦利品1100Gと東方の文物を持ち帰った";}
+      allHomes(-5);return "🕯 遠征は苦難の連続だった…騎士たちは疲れ果てて帰還した";}},
+   b:{label:"丁重に辞退する",ps:{control:+3},
+      fx:()=>{return "🕊 「領民を守るのが我が務め」——使者は渋い顔で去った";}}},
+  {id:"invasion",t:"隣国侵攻の予兆",ico:"🗡",cond:()=>rankIdx>=4,
+   txt:"国境の斥候より急報。隣国の軍勢が、こちらへ向け集結しつつあるという。",
+   a:{label:"先制して叩く",ps:{mercy:-5,tyranny:-4},
+      fx:()=>{if(security()>=12){res.gold+=700;return "⚔️ 夜襲は完璧に決まった。敵は四散し、軍資金700Gを鹵獲！";}
+      res.gold-=500;allHomes(-6);return "🔥 兵力不足で押し返された… -500G。城壁の内で領民が震えている";}},
+   b:{label:"和睦の使者を送る（-250G）",ps:{mercy:+4},
+      fx:()=>{res.gold-=250;allHomes(3);return "🕊 贈り物が功を奏し、軍勢は退いた。「戦わずして勝つ」も兵法なり";}}},
+  {id:"mercs",t:"傭兵団の売り込み",ico:"🛡",cond:()=>population()>80&&!flags.mercUntil,
+   txt:"歴戦の傭兵団「黒山羊隊」が契約書を携えて来た。「2季節、城の守りを請け負おう。前金でな」",
+   a:{label:"雇う（-300G・治安+5）",ps:{control:+3},
+      fx:()=>{res.gold-=300;flags.mercUntil=day+SEASON_LEN*2;
+      return "🛡 黒山羊の旗が城壁に翻った。夜盗どもは当分近寄るまい";}},
+   b:{label:"断る",ps:{greed:+2},
+      fx:()=>{return "🚪 「気が変わったら呼びな」——傭兵たちは砂埃と共に去った";}}},
+  {id:"mercbetray",t:"傭兵の裏切り",ico:"🗡",cond:()=>!!flags.mercUntil&&day<=flags.mercUntil&&Math.random()<.4,
+   txt:"黒山羊隊の隊長が酒場で凄んでいる。「報酬を倍にしてもらおうか。さもなくば……分かるな？」",
+   a:{label:"倍払いで黙らせる（-300G）",ps:{control:+3,greed:-3},
+      fx:()=>{res.gold-=300;return "💸 金貨の重みが刃を鞘に収めさせた。だが信用はもう戻らない";}},
+   b:{label:"騎士団に追放させる",ps:{tyranny:-3,mercy:-3},
+      fx:()=>{delete flags.mercUntil;
+      if(security()>=8){res.gold+=150;return "⚔️ 騎士団が傭兵どもを叩き出した！ 置き土産の前金150Gは没収";}
+      res.gold-=200;allHomes(-5);return "🔥 乱闘の末に追い出したが、市場が荒らされた… -200G";}}},
+
+  // ================= オカルト系 =================
+  {id:"breaddough",t:"パン生地の反乱",ico:"🥖",cond:()=>countType("market")>=1&&day>6,
+   txt:"パン屋の生地が一晩で膨れ上がり、窯を破って通りへ溢れ出した！ 妙に意思を感じる動きだ。",
+   a:{label:"皆で焼いて食べてしまう",ps:{mercy:+2},wv:{fantasy:+3},
+      fx:()=>{res.food=Math.min(2000,res.food+25);allHomes(5);return "🍞 巨大パンの祭りになった。食料+25。生地の意思は、胃袋の中である";}},
+   b:{label:"原因の酵母を調査する",wv:{realism:+4},
+      fx:()=>{if(route)res.lore+=6;return "🔬 異常発酵の酵母を分離した。"+(route?loreName()+"+6。":"")+"パンがふっくら焼ける副産物つき";}}},
+  {id:"timefreeze",t:"時間が止まった日",ico:"🕰",cond:()=>route==="fantasy"&&countType("magetower")>=1,
+   txt:"正午の鐘が鳴った瞬間——城のすべてが止まった。雲も、噴水の水も。動けるのは、そなただけ。",
+   a:{label:"止まった世界を歩いて観察する",wv:{fantasy:+6},ps:{control:+3},
+      fx:()=>{res.lore+=15;return "🕰 鐘の音と共に世界は動き出した。手帳には観察記録がびっしり。魔力+15";}},
+   b:{label:"魔法塔に駆け込み解除させる",ps:{control:-4},
+      fx:()=>{res.lore+=5;return "🔮 魔導士たちが青い顔で詠唱し、時は流れを取り戻した。「実験は……失敗です」魔力+5";}}},
+  {id:"shadowindep",t:"影の独立宣言",ico:"🌑",cond:()=>route==="fantasy"&&population()>120,
+   txt:"夕暮れ、城壁に映るそなたの影が振り返って言った。「本日をもって、私は独立させていただく」",
+   a:{label:"交渉のテーブルにつく",wv:{fantasy:+6},ps:{tyranny:+4},
+      fx:()=>{res.lore+=10;res.gold+=200;return "🌑 影は夜の見回りを請け負う条件で再契約に応じた。初任給として拾い物200Gを納めてきた";}},
+   b:{label:"光で塗り潰す（-100G）",ps:{tyranny:-4},wv:{fantasy:+2},
+      fx:()=>{res.gold-=100;return "🕯 千本の蝋燭で影は薄れ、しぶしぶ足元に戻った。当分は口をきいてくれそうにない";}}},
+  {id:"vampiress",t:"夜の伯爵夫人",ico:"🦇",cond:()=>route==="fantasy"&&rankIdx>=2,
+   txt:"月のない夜、漆黒のドレスの貴婦人が門前に立った。「一夜の宿を。ああ、鏡のない部屋でしたら、なお嬉しいわ」",
+   a:{label:"客間に迎える",wv:{fantasy:+5},ps:{mercy:+3},
+      fx:()=>{res.lore+=14;return "🦇 夫人は古の宮廷の作法と秘術を語り明かした。魔力+14。朝、部屋は空で、窓辺に紅い薔薇が一輪";}},
+   b:{label:"聖印を掲げて断る",ps:{tradition:-4},
+      fx:()=>{allHomes(3);return "✝ 夫人は微笑み、霧に解けた。「賢明ね。でも、退屈な城」翌朝、領民は妙に安堵していた";}}},
+  {id:"immortal",t:"不死の貴公子",ico:"🥂",cond:()=>rankIdx>=3,
+   txt:"宴に現れた優雅な紳士が、300年前の戦の「見聞」を語っている。歳の頃は、どう見ても30。",
+   a:{label:"夜更けまで話を聞く",wv:{fantasy:+5},
+      fx:()=>{if(route)res.lore+=18;return "🥂 彼は王朝三つ分の興亡を一人称で語った。"+(route?loreName()+"+18。":"")+"杯は一度も減っていなかった";}},
+   b:{label:"素性を調べさせる",wv:{realism:+4},ps:{control:-4},
+      fx:()=>{return hasRet(5)?"🎭 シルヴィアの報告：「過去150年、同じ顔の紳士が7つの宮廷に出入りした記録があります」……それ以上は、調べない方が良さそうだ":"🕵 調べはつかなかった。宴の名簿に、彼の名は最初から無かった";}}},
+  {id:"foundling",t:"謎の少年",ico:"🧒",cond:()=>day>10,
+   txt:"門前に少年が立っていた。出自を問えば「塔の中でずっと育った。外は初めて」と言う。所作は、なぜか王族のそれである。",
+   a:{label:"城で保護する（-食料5）",ps:{mercy:+5},wv:{fantasy:+3},
+      fx:()=>{res.food=Math.max(0,res.food-5);allHomes(4);
+      return "🧒 少年は驚くべき速さで学んでいく。厨房の婆やがすっかり手なずけられた";}},
+   b:{label:"王都の修道院に預ける",ps:{control:+3,mercy:-2},
+      fx:()=>{res.gold+=150;return "⛪ 修道院から謝礼150G。後日「あの子は一体何者か」と問い合わせの書状が三通来た";}}},
+  {id:"moonprophet",t:"月の預言者",ico:"🌙",cond:()=>!flags.prophecyShield&&day>8,
+   txt:"月を見つめ続けて目を傷めたという老人が予言を売りに来た。「近く、闇が城の金蔵を狙う。備えを売ろう」",
+   a:{label:"予言を買う（-200G）",wv:{fantasy:+4},ps:{tradition:-3},
+      fx:()=>{res.gold-=200;flags.prophecyShield=true;
+      return "🌙 「北の壁の見張りを倍に。月が欠ける夜は門を二重に」——次の凶事は防がれるだろう";}},
+   b:{label:"「未来は自分で作る」と断る",wv:{realism:+4},
+      fx:()=>{return "🌙 老人は静かに頷いた。「それもまた、良い未来の作り方だ」";}}},
+  {id:"timetraveler",t:"時間旅行者",ico:"⏳",cond:()=>route==="fantasy"&&res.lore>=60,
+   txt:"奇妙な服の男が保護された。「西暦……いや、ここでは言い方が違うか。私は500年後から来た。この城、教科書で見ました」",
+   a:{label:"未来の話を聞く",wv:{fantasy:+7},
+      fx:()=>{res.lore+=20;return "⏳ 彼の語る「未来の城の姿」を書き留めた。魔力+20。翌朝、彼は服だけ残して消えていた";}},
+   b:{label:"医者（と牢番）を呼ぶ",wv:{realism:+3},ps:{control:-3},
+      fx:()=>{return "🩺 ただの旅芸人と診断された。だが彼の持っていた銀色の小さな板は、ついに誰にも開けられなかった";}}},
+  {id:"jester",t:"仮面の道化師",ico:"🃏",cond:()=>rankIdx>=1,
+   txt:"銀の仮面の道化師が城門で宙返りをしている。「笑いを納めに参上！ 給金は笑顔で結構、あと少々の金貨で」",
+   a:{label:"宮廷道化師として雇う（-150G）",ps:{mercy:+3,tradition:+3},
+      fx:()=>{res.gold-=150;allHomes(9);
+      return "🃏 城に笑いが満ちた。だが彼の風刺は時々、心臓に少し近いところを突く";}},
+   b:{label:"仮面の下を検めてから決める",ps:{control:-4},
+      fx:()=>{return Math.random()<.5?"🃏 仮面の下は、また仮面だった。道化師は一礼して煙のように消えた":"🃏 「無粋!」と叫んで道化師は去った。去り際の宙返りは見事だった";}}},
+
+  // ================= 特殊系 =================
+  {id:"apocalypse",t:"世界の終わりの預言",ico:"☄",cond:()=>rankIdx>=4,
+   txt:"「次の新月、空から星が落ち、世界は終わる」——流浪の説教師が城下で説き、領民が動揺している。",
+   a:{label:"祈りと備蓄で備える（-400G）",ps:{tradition:-3,mercy:+3},
+      fx:()=>{res.gold-=400;res.food=Math.min(2000,res.food+30);allHomes(4);
+      return "🕯 新月の夜——何も起きなかった。だが蓄えた食料30と、皆で過ごした夜の絆が残った";}},
+   b:{label:"流言として説教師を追放",ps:{tyranny:-3},wv:{realism:+5},
+      fx:()=>{if(Math.random()<.85){allHomes(2);return "☀️ 新月の夜は静かに明けた。理性の勝利である";}
+      res.gold-=300;allHomes(-6);return "☄ 新月の夜、小さな流星が納屋を焼いた…偶然だ。偶然のはずだ… -300G";}}},
+
+  // ================= 連鎖イベントの起点 =================
+  {id:"crownmap",t:"古地図の行商人",ico:"🗺",cond:()=>!chains.crown&&day>10,
+   txt:"行商人が古びた羊皮紙を差し出した。「失われた王冠の在処を示す地図……だそうで。私には読めませんがね」",
+   a:{label:"買う（-150G）",ps:{tradition:+3},
+      fx:()=>{res.gold-=150;chains.crown={stage:0,nextDay:day+3};
+      return "🗺 地図はこの城の真下——古井戸の奥を指している。連鎖の物語『失われた王冠』が始まった";}},
+   b:{label:"眉唾と断る",wv:{realism:+2},
+      fx:()=>{return "🚪 行商人は肩をすくめた。「では、別の城の殿様に」";}}},
+  {id:"sealbook",t:"封印の書",ico:"📖",cond:()=>route==="fantasy"&&countType("magetower")>=1&&!chains.seals,
+   txt:"魔法塔の書庫整理で、鎖に巻かれた黒い書物が見つかった。表紙に七つの封蝋——うち一つが、今まさに崩れた。",
+   a:{label:"塔で管理し、研究する",wv:{fantasy:+6},
+      fx:()=>{chains.seals={stage:0,nextDay:day+3};res.lore+=5;
+      return "📖 魔導士たちが交代で監視を始めた。魔力+5。連鎖の物語『七つの封印』が始まった";}},
+   b:{label:"湖の底に沈めさせる",ps:{tradition:-4},
+      fx:()=>{return "🌊 書は鉛の箱で湖底へ。……三日後、書庫の同じ棚に戻っていたが、見なかったことにした";}}},
 ];
+
+// ---------- 連鎖イベント (全数章の物語) ----------
+const CHAIN_DEFS={
+  crown:{name:"失われた王冠",ico:"👑",stages:[
+    {t:"第一夜　羊皮紙の謎",txt:"地図の印は古井戸の底、東へ三十歩の地点。井戸の縁には、地図と同じ紋章が刻まれていた。",
+     a:{label:"探索隊を下ろす（-100G）",fx:s=>{res.gold-=100;return "🕳 隊は井戸の底に、人ひとり通れる横穴を発見した。物語は続く……";}},
+     b:{label:"今は寝かせておく",wait:true,fx:s=>"🗺 地図は文箱の奥へ。だが夢に、王冠が出てくるようになった"}},
+    {t:"第二夜　地下水路の扉",txt:"横穴の先、地下水路の奥に青銅の扉。三つの王冠の紋章と、錆びついた錠前。",
+     a:{label:"こじ開ける",fx:s=>{if(Math.random()<.5)return "🚪 軋みと共に扉が開いた！ 奥から古い空気が流れ出す……";
+        res.gold-=150;return "💥 扉ごと壁が崩れ、掘り直しに-150G。それでも道は開けた";}},
+     b:{label:"鍛冶屋に鍵を作らせる（-80G）",fx:s=>{res.gold-=80;return "🗝 三日三晩かけて合鍵が完成。扉は静かに開いた";}}},
+    {t:"第三夜　偽りの輝き",txt:"扉の先の小部屋で、先回りした盗掘団が「王冠を売ってやる」と嘯く。差し出された王冠は——黄金色だが、軽い。",
+     a:{label:"買い取る（-400G）",fx:s=>{res.gold-=400;
+        if(hasRet(5))return "🎭 シルヴィアが囁いた。「鍍金です」——脅し上げて400Gは取り返し、盗掘団から本物の手がかりを吐かせた";
+        return "👑 ……後日、鍍金と判明。だが盗掘団の落とした手記に、真の隠し場所が記されていた";}},
+     b:{label:"騎士団で捕縛する",fx:s=>{if(security()>=6){res.gold+=200;return "⚔️ 盗掘団を一網打尽！ 罰金200Gと、奴らの調べ上げた真の隠し場所を入手した";}
+        return "🏃 取り逃がした…だが慌てた盗掘団が地図の写しを落としていった";}}},
+    {t:"最終夜　失われた王冠",txt:"手がかりの示す祭壇の下——絹に包まれた、本物の王冠があった。三百年前に滅びた古王国、最後の王のものである。",
+     a:{label:"玉座に飾る",end:true,fx:s=>{
+        if(throneBuilt){allHomes(12);return "👑 古き王冠は王座の間に輝いた。領民は囁く。「我らが殿こそ、古王国の正統」——物語『失われた王冠』完結";}
+        res.gold+=600;allHomes(6);return "👑 王座の間なき今は宝物庫へ。見物料で+600G。いつか玉座の上に——物語『失われた王冠』完結";}},
+     b:{label:"王都に献上する",end:true,fx:s=>{res.gold+=1000;allHomes(5);
+        return "🤝 王はいたく感激し、返礼1000Gと「王冠の発見者」の名誉を賜った——物語『失われた王冠』完結";}}},
+  ]},
+  seals:{name:"七つの封印",ico:"📖",stages:[
+    {t:"第二の封印　囁く頁",txt:"夜半、書が独りでに開き、頁が囁き始めた。「読み手よ。我らは鍵にして扉」二つ目の封蝋が崩れる。",
+     a:{label:"囁きを書き取る",fx:s=>{res.lore+=10;return "🖋 古代語の詠唱を記録した。魔力+10。残る封印は五つ";}},
+     b:{label:"今夜は書庫を閉じる",wait:true,fx:s=>"🔒 扉に三重の鍵をかけた。だが囁きは、夢の中まで追ってきた"}},
+    {t:"第四の封印　長い影",txt:"城中の影が、本来の持ち主より三拍遅れて動くようになった。書の封蝋は、もう四つ崩れている。",
+     a:{label:"魔法塔の総力で抑える（-150G）",fx:s=>{res.gold-=150;res.lore+=12;
+        return "🔮 結界が張られ、影は素直に戻った。観測記録で魔力+12。残る封印は三つ";}},
+     b:{label:"影たちに夜の自由時間を与える",fx:s=>{res.lore+=8;allHomes(-3);
+        return "🌑 影は満足げだが、領民は夜の散歩をやめた。魔力+8";}}},
+    {t:"第六の封印　止まった鐘",txt:"正午の鐘が、鳴る寸前で止まっている。音が、空中に凍りついているのだ。封印は残りひとつ。",
+     a:{label:"凍った音に触れる",fx:s=>{res.lore+=15;return "🔔 触れた瞬間、三日分の鐘の音が一斉に鳴った。耳鳴りと引き換えに魔力+15";}},
+     b:{label:"鐘楼を封鎖して待つ",fx:s=>{res.lore+=6;return "⏳ 夕刻、音はひとりでに溶けて流れた。魔力+6。書の最後の封蝋が、明滅している";}}},
+    {t:"最後の封印",txt:"書が宙に浮き、最後の封蝋が問うている。「開けば、扉の向こうの知をすべて与えよう。封じれば、安寧を返そう」",
+     a:{label:"開く",end:true,fx:s=>{res.lore+=50;wvShift({fantasy:+10});
+        return "✨ 頁から光が溢れ、城の屋根を貫いて天へ伸びた。魔力+50。遥か高みに、何かの気配が——物語『七つの封印』完結";}},
+     b:{label:"永遠に封じる",end:true,fx:s=>{allHomes(12);persShift({tradition:-5});
+        return "🕊 書は自ら閉じ、ただの古書に戻った。城に深い安らぎが満ちる——物語『七つの封印』完結";}}},
+  ]},
+};
+function chainTick(){
+  if(modalOpen||day-lastEventDay<2)return;
+  for(const id in chains){
+    const st=chains[id];const def=CHAIN_DEFS[id];
+    if(!def||st.done)continue;
+    if(st.nextDay<=day&&def.stages[st.stage]){
+      lastEventDay=day;
+      showChainStage(id,st,def,def.stages[st.stage]);
+      return;
+    }
+  }
+}
+function showChainStage(id,st,def,ev){
+  pauseForModal();
+  beep(520,.14,"triangle",.05);beep(390,.18,"triangle",.05,.12);
+  showScroll(`
+    <h2>${def.ico} ${def.name}</h2>
+    <div class="ev-speaker">連鎖の物語　${st.stage+1} / ${def.stages.length}章</div>
+    <div><b>${ev.t}</b><br>${ev.txt}</div>
+    <div class="choice-btns">
+      <button id="chA">${ev.a.label}</button>
+      <button id="chB" class="alt">${ev.b.label}</button>
+    </div>
+  `);
+  const pick=(c)=>{
+    const msg=c.fx(st);
+    if(c.end)st.done=true;
+    else if(c.wait)st.nextDay=day+6;
+    else{st.stage++;st.nextDay=day+4+Math.floor(rnd(0,4));}
+    closeScroll();
+    if(msg)toast(msg);
+    recomputeHappiness();updateHUD();saveGame();
+  };
+  document.getElementById("chA").onclick=()=>pick(ev.a);
+  document.getElementById("chB").onclick=()=>pick(ev.b);
+}
 function allHomes(d){
   for(const id in rooms){const r=rooms[id];
     if(ROOMS[r.type]&&(ROOMS[r.type].pop||ROOMS[r.type].rent))r.happy=clamp(r.happy+d,0,100);}
@@ -702,11 +1209,33 @@ function showEvent(ev){
       <button id="evB" class="alt">${ev.b.label}</button>
     </div>
   `);
-  document.getElementById("evA").onclick=()=>{resolveEvent(ev.a);};
-  document.getElementById("evB").onclick=()=>{resolveEvent(ev.b);};
+  document.getElementById("evA").onclick=()=>{resolveEvent(ev,ev.a,"a");};
+  document.getElementById("evB").onclick=()=>{resolveEvent(ev,ev.b,"b");};
 }
-function resolveEvent(choice){
+// 既存イベントの選択が領主の性格と世界観に残す痕跡
+const EVENT_SHIFTS={
+  cheese:{a:{ps:{mercy:+4,greed:+3}},b:{ps:{greed:-5,mercy:-2}}},
+  well:{a:{wv:{fantasy:+4}},b:{ps:{tradition:-3},wv:{realism:+3}}},
+  cats:{a:{ps:{mercy:+4},wv:{fantasy:+3}},b:{ps:{mercy:-4},wv:{realism:+2}}},
+  caravan:{a:{ps:{tradition:+2}},b:{ps:{greed:-2}}},
+  coin:{a:{ps:{tyranny:-4,mercy:-2},wv:{realism:+3}},b:{ps:{control:-4}}},
+  bard:{a:{ps:{mercy:+3,tradition:+3}},b:{ps:{tradition:-3}}},
+  harvest:{a:{ps:{mercy:+3,greed:+4}},b:{ps:{greed:-3}}},
+  snowfes:{a:{ps:{mercy:+4,greed:+3}},b:{ps:{greed:-3,mercy:-2}}},
+  envoy:{a:{ps:{mercy:+2}},b:{ps:{tyranny:-3,mercy:-3}}},
+  basement:{a:{ps:{tradition:+3},wv:{fantasy:+2}},b:{ps:{tradition:-3},wv:{realism:+2}}},
+  plague:{a:{ps:{control:-3,mercy:+4},wv:{realism:+4}},b:{ps:{control:+4,mercy:-3}}},
+  scholar:{a:{wv:{realism:+4},ps:{tradition:+3}},b:{}},
+  teaparty:{a:{wv:{fantasy:+5}},b:{wv:{fantasy:-2},ps:{tradition:-2}}},
+  dragonvisit:{a:{ps:{mercy:+2,greed:+2},wv:{fantasy:+4}},b:{ps:{tyranny:-2},wv:{fantasy:+3}}},
+};
+function resolveEvent(ev,choice,side){
   const msg=choice.fx();
+  // 性格・世界観への影響 (イベント定義のインライン指定 or 既存イベント用の対照表)
+  if(choice.ps)persShift(choice.ps);
+  if(choice.wv)wvShift(choice.wv);
+  const sh=ev&&EVENT_SHIFTS[ev.id]&&EVENT_SHIFTS[ev.id][side];
+  if(sh){if(sh.ps)persShift(sh.ps);if(sh.wv)wvShift(sh.wv);}
   closeScroll();
   if(msg)toast(msg);
   recomputeHappiness();updateHUD();saveGame();
@@ -736,12 +1265,28 @@ function showSageChoice(){
 }
 function chooseRoute(rt){
   route=rt;sageShown=true;
+  worldView[rt==="real"?"realism":"fantasy"]=Math.max(worldView[rt==="real"?"realism":"fantasy"],80);
   closeScroll();
   document.getElementById("loreStat").style.display="flex";
   document.getElementById("loreIco").textContent=rt==="fantasy"?"✨":"📖";
   toast(rt==="real"?"📜 城は『史実の道』を歩み始めた。大学・銀行が解禁！":"🔮 城は『幻想の道』に踏み込んだ。魔法塔・冒険者ギルドが解禁！",rt==="fantasy"?"magic":"gold");
   sndFanfare();
   updateToolbar();updateHUD();saveGame();
+}
+// 世界観パラメーターが80に達していれば、賢者は問わずとも道は定まっている
+function autoRoute(rt){
+  pauseForModal();sndMystic();
+  showScroll(`
+    <h2>🔮 定められた道</h2>
+    <img class="sage-portrait" src="img/sage.jpg" alt="" onerror="this.remove()">
+    <div class="center">霧の朝、旅の老賢者が城門に立った。だが問いを発する前に、城を一目見て笑った。<br><br>
+    「ふむ。問うまでもないな。<br>そなたの日々の選択が、すでに道を選んでおる」</div>
+    <hr>
+    <div class="center"><b>${rt==="real"?"📜 史実の道":"🔮 幻想の道"}</b><br>
+    <small>${rt==="real"?"積み重ねた理性と実利が、城を学問と商いの都へ導く":"積み重ねた不思議との縁が、城を魔法と冒険の世界へ導く"}</small></div>
+    <button id="rtAuto">この道を歩む</button>
+  `);
+  document.getElementById("rtAuto").onclick=()=>{chooseRoute(rt);};
 }
 
 // ---------- ランク ----------
@@ -759,14 +1304,23 @@ function checkRank(pop){
     rankIdx=target;updateToolbar();updateHUD();
     toast("📉 人口減少により『"+RANKS[rankIdx].name+"』へ降格…","bad");
   }
-  if(!sageShown&&rankIdx>=2&&!modalOpen)showSageChoice();
+  if(!sageShown&&rankIdx>=2&&!modalOpen){
+    if(worldView.fantasy>=80&&worldView.fantasy>worldView.realism)autoRoute("fantasy");
+    else if(worldView.realism>=80&&worldView.realism>worldView.fantasy)autoRoute("real");
+    else showSageChoice();
+  }
 }
 
 // ---------- 建設・撤去 ----------
 function costAfter(d){
+  if(isCreative())return {g:0,w:0,s:0};   // クリエイティブモードは無償
   const mul=hasRet(4)?(retEvo[4]==="legend"?0.8:retEvo[4]==="mbuild"?0.88:0.9):1; // ガストン (進化で強化)
   return {g:Math.round((d.cost.g||0)*mul),w:d.cost.w||0,s:d.cost.s||0};
 }
+// 史実の道は現実の石積みの限界＝地上30階(f=29)まで。幻想の道は天井知らず(仕様書準拠)
+const REAL_FCAP=29;
+// 天空の間: 幻想は41階以上、史実は『大聖堂の尖塔』として26階以上(30階制限内)に築ける
+function skyMinF(){return route==="real"?25:40;}
 function costLabel(d){
   const c=costAfter(d);
   let s=fmt(c.g)+"G";
@@ -776,12 +1330,17 @@ function costLabel(d){
 }
 function canPlace(type,c,f){
   const d=ROOMS[type];if(!d)return {ok:false,why:""};
-  if(rankIdx<d.rank)return{ok:false,why:RANKS[d.rank].name+"で解禁"};
-  if(d.route&&route!==d.route)return{ok:false,why:"道の選択が必要"};
-  if(d.mile&&!milestones[d.mile])return{ok:false,why:loreName()+"を高めて解禁"};
-  if(f<d.minF||f>d.maxF){
-    if(d.minF<0&&d.maxF<0)return{ok:false,why:"地下専用"};
-    if(d.minF>0)return{ok:false,why:(d.minF+1)+"階以上に建設"};
+  if(!isCreative()){
+    if(rankIdx<d.rank)return{ok:false,why:RANKS[d.rank].name+"で解禁"};
+    if(d.route&&route!==d.route)return{ok:false,why:"道の選択が必要"};
+    if(d.mile&&!milestones[d.mile])return{ok:false,why:loreName()+"を高めて解禁"};
+  }else if(d.route&&route&&route!==d.route)return{ok:false,why:"選ばなかった道の施設"};
+  if(route==="real"&&f>REAL_FCAP&&!isCreative())
+    return{ok:false,why:"史実の道は30階まで（石積みの限界）"};
+  const minF=(type==="skyhall")?skyMinF():d.minF;
+  if(f<minF||f>d.maxF){
+    if(minF<0&&d.maxF<0)return{ok:false,why:"地下専用"};
+    if(minF>0)return{ok:false,why:(minF+1)+"階以上に建設"};
     return{ok:false,why:"この階には建てられない"};
   }
   if(c<0||c+d.w>COLS)return{ok:false,why:"敷地の外"};
@@ -806,7 +1365,7 @@ function place(type,c,f){
   if(type==="throne"){throneBuilt=true;toast("👑 王座の間が完成した！ 玉座が主を待っている");}
   if(type==="skyhall"){skyBuilt=true;toast("🌟 天空の間が完成！ 雲の上に玉光が灯る");sndMystic();}
   if(type==="roost"){toast("🐲 若い竜が巣に舞い降りた！ 城の守護者となるだろう");startDragon();}
-  if(f<=-9&&!undergroundEnd){undergroundEnd=true;showUnderground();}
+  if(f<=-9&&!undergroundEnd){undergroundEnd=true;if(!isCreative())unlockEnding("under");}
   recomputeReach();recomputeHappiness();
   sndPlace();updateHUD();
   return true;
@@ -1556,13 +2115,14 @@ function updateToolbar(){
     }else{
       const d=ROOMS[t];
       if(d.route&&route&&route!==d.route)continue;          // 選ばなかった道は非表示
-      const locked=rankIdx<d.rank||(d.route&&!route)||(d.mile&&!milestones[d.mile]);
+      const locked=!isCreative()&&(rankIdx<d.rank||(d.route&&!route)||(d.mile&&!milestones[d.mile]));
       if(locked)el.classList.add("locked");
       let lockTxt="";
       if(rankIdx<d.rank)lockTxt="🔒"+RANKS[d.rank].name;
       else if(d.route&&!route)lockTxt="🔒道の選択後";
       else if(d.mile&&!milestones[d.mile])lockTxt="🔒"+(route?loreName():"研究")+"80";
-      const name=t==="mlift"?(route==="fantasy"?"魔法昇降機":route==="real"?"水力昇降機":"特殊昇降機"):d.name;
+      const name=t==="mlift"?(route==="fantasy"?"魔法昇降機":route==="real"?"水力昇降機":"特殊昇降機")
+                :t==="skyhall"&&route==="real"?"大聖堂の尖塔":d.name;
       el.innerHTML=`<span class="t-ico">${d.ico}</span><span class="t-name">${name}</span>
         <span class="t-cost">${locked?lockTxt:costLabel(d)}</span>`;
       if(locked){toolbar.appendChild(el);continue;}
@@ -1740,18 +2300,6 @@ function doEvolve(i,side){
 }
 window.__evo=(i)=>{closeScroll();setTimeout(()=>showEvoChoice(i),60);};
 
-function showUnderground(){
-  pauseForModal();
-  sndMystic();
-  showScroll(`
-    <h2>⛏ 地底の皇帝</h2>
-    <div class="center">地下10階——日の光の届かぬ最深部に、そなたは部屋を築いた。<br><br>
-    坑夫たちは畏怖を込めて囁く。<br>「我らの殿は、地の底さえ統べるおつもりだ」<br><br>
-    <b>実績解除：地底の皇帝</b></div>
-    <button onclick="window.__closeScroll()">さらに深く</button>
-  `);
-}
-
 document.getElementById("helpBtn").addEventListener("click",()=>{
   if(modalOpen)return;
   const next=RANKS[Math.min(rankIdx+1,RANKS.length-1)];
@@ -1764,8 +2312,36 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
       ?`${rt.img?`<img class="ret-mini" src="${rt.img}" alt="" onerror="this.remove()">`:""}${ev?ev.ico:rt.ico} <b>${ev?ev.name+"・":""}${rt.name}</b>（${rt.role}）— ${ev?ev.buff:rt.buff}${canEvo?` <button class="evo-btn" onclick="window.__evo(${i})">⤴ 進化</button>`:""}<br>`
       :`❔ <span style="color:#9a8458">？？？ — ${RANKS[i].name}で仕官</span><br>`;
   }
+  // 領主の性格
+  const pt=PERS_TYPES[persType()];
+  let persHtml="";
+  for(const [k,lo,hi] of PERS_AXES){
+    const v=personality[k], n=Math.round(v/10);
+    persHtml+=`<div class="row" style="font-size:11px"><span>${lo}</span><span style="font-family:monospace;letter-spacing:-1px;color:#7a5c20">${"▓".repeat(n)}${"░".repeat(10-n)}</span><span>${hi}</span></div>`;
+  }
+  // 世界観
+  const wvHtml=route
+    ?`<small>定まった道：<b>${route==="real"?"📜 史実の道（建設は地上30階まで）":"🔮 幻想の道（天井知らず）"}</b></small>`
+    :`<small>📜現実 ${Math.round(worldView.realism)} ／ 🔮幻想 ${Math.round(worldView.fantasy)}　（どちらかが80に達すると道が定まる。男爵昇格時に賢者が問う）</small>`;
+  // 年代記の結末
+  const endN=Object.keys(endings).length;
+  let endHtml="";
+  for(const k in ENDING_DEFS){
+    const e=ENDING_DEFS[k];
+    endHtml+=endings[k]
+      ?`${e.ico} <b>${e.name}</b><br>`
+      :`<span style="color:#9a8458">❔ ${e.hint}</span><br>`;
+  }
+  // モードと章目標
+  const modeName=isCreative()?"🎨 クリエイティブ":isScenario()?"📯 シナリオ「王国の興亡」":"♾ エンドレス（"+({easy:"やさしい",normal:"ふつう",hard:"むずかしい",nightmare:"悪夢"}[gameMode&&gameMode.diff]||"ふつう")+"）";
+  const scenHtml=isScenario()
+    ?(scenarioCh<=5
+      ?`<div class="chapter" style="margin:8px 0 0"><b>📯 ${SCENARIO_CH[scenarioCh].t}</b>目標：${SCENARIO_CH[scenarioCh].goal}</div>`
+      :`<div class="chapter" style="margin:8px 0 0"><b>🏆 シナリオ完結</b>この先は自由な治世である。</div>`)
+    :"";
   showScroll(`
     <h2>城主の心得</h2>
+    <div style="font-size:12px;color:#6e5b39">${modeName}</div>${scenHtml}
     <div style="font-size:13px">
     <span class="help-k">一．</span>下のツールから施設を選び配置せよ。上の階は<b>下の階の真上</b>にのみ建つ。建設には金貨と<b>🪵木材・🪨石材</b>が要る（上部バーをタップで購入も可）。<br>
     <span class="help-k">二．</span><b>🌀階段</b>か<b>🛗昇降機</b>で階をつなげ。届かぬ部屋は「⚠」で停止する。階段続きだと客は<b>黒→赤</b>に苛立つ。昇降機は苛立ちを癒す。<br>
@@ -1773,10 +2349,15 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     <span class="help-k">四．</span>🪚工房は木材、⛏石切場（地下）は石材を産む。酒場・鍛冶屋の<b>隣</b>の住居は騒音で荒れる。⛪礼拝堂は周囲を癒す。<br>
     <span class="help-k">五．</span>男爵に昇格すると<b>賢者の問い</b>が訪れ、『📜史実の道』か『🔮幻想の道』を選ぶ。知識／魔力を蓄えると発明・秘術が目覚める。<br>
     <span class="help-k">六．</span>夜盗には<b>⚔兵舎</b>。昇格のたびに<b>家臣</b>が仕官し、城を強くする。<br>
-    <span class="help-k">七．</span>最終目標——人口900、41階以上の<b>🌟天空の間</b>を備えし<b>天空城郭</b>なり。地の底にも、何かが眠るという…
+    <span class="help-k">七．</span>最終目標——人口900、${route==="real"?"26階以上の<b>✠大聖堂の尖塔</b>":"41階以上の<b>🌟天空の間</b>"}を備えし<b>天空城郭</b>なり。地の底にも、何かが眠るという…
     </div>
     <hr>
+    <div style="font-size:12px"><b>${pt.ico} 領主の性格：${pt.name}</b><br><small>${pt.desc}</small>${persHtml}
+    <div style="margin-top:4px">${wvHtml}</div></div>
+    <hr>
     <div class="retainer-list"><b>家臣団：</b><br>${retHtml}</div>
+    <hr>
+    <div class="retainer-list"><b>年代記の結末（${endN} / ${Object.keys(ENDING_DEFS).length}）：</b><br>${endHtml}</div>
     <hr>
     <div class="center"><small>操作：ドラッグで視点移動／👆で部屋を調べる／通路・階段はドラッグで連続配置<br>
     次の称号「${next.name}」まで：人口 ${next.pop}人${next.needsThrone?" ＋ 王座の間":""}${next.needsSky?" ＋ 天空の間":""}</small></div>
@@ -1829,6 +2410,7 @@ async function saveGame(){
     if(!window.storage)return;
     const data={res,day,rankIdx,maxRankSeen,nextRoomId,throneBuilt,skyBuilt,won,
       route,sageShown,milestones,undergroundEnd,lastEventDay,retEvo,
+      personality,worldView,gameMode,scenarioCh,endings,chains,flags,happyStreak,miseryStreak,
       savedAt:Date.now(),
       rooms:Object.values(rooms).map(r=>({id:r.id,type:r.type,f:r.f,c:r.c,w:r.w,occ:r.occ}))};
     await window.storage.set("castle_chronicle_v2",JSON.stringify(data));
@@ -1865,6 +2447,14 @@ async function loadGame(){
       won=!!d.won;route=d.route||null;sageShown=!!d.sageShown;
       milestones=d.milestones||{};undergroundEnd=!!d.undergroundEnd;
       lastEventDay=d.lastEventDay||0;retEvo=d.retEvo||{};
+      personality=Object.assign({tyranny:50,mercy:50,greed:50,tradition:50,control:50},d.personality);
+      worldView=Object.assign({realism:50,fantasy:50},d.worldView);
+      gameMode=d.gameMode||{kind:"endless",diff:"normal"};  // 旧セーブはエンドレス標準として継続
+      scenarioCh=d.scenarioCh||1;
+      endings=d.endings||{};chains=d.chains||{};flags=d.flags||{};
+      happyStreak=d.happyStreak||0;miseryStreak=d.miseryStreak||0;
+      if(undergroundEnd&&!endings.under)endings.under=true; // 旧実績を結末に引き継ぐ
+      if(won&&!endings.sky)endings.sky=true;
       return true;
     }
     // 旧版(キャッスル・キーパー)からの引き継ぎ
@@ -1881,6 +2471,7 @@ async function loadGame(){
         res.gold=d.gold||5000;day=d.day||1;rankIdx=Math.min(d.rankIdx||0,4);
         maxRankSeen=rankIdx;nextRoomId=d.nextRoomId||1000;throneBuilt=!!d.throneBuilt;
         res.food=120;res.wood=80;res.stone=40;
+        gameMode={kind:"endless",diff:"normal"};
         toast("📜 旧き記録を引き継いだ。年代記は新たな章へ");
         return true;
       }
@@ -1910,29 +2501,71 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
+// ---------- 新規ゲーム: モード選択 ----------
+function showModeSelect(){
+  pauseForModal();
+  showScroll(`
+    <h2>年代記の始まり</h2>
+    <div class="center">いかなる治世の記録を残すか、選ばれよ。</div>
+    <div class="choice-btns" style="flex-direction:column">
+      <button id="mdScen">📯 シナリオ「王国の興亡」<br><small>全5章。十字軍・黒死病・百年戦争を章目標と共に駆け抜ける正史</small></button>
+      <button id="mdEnd" class="alt">♾ エンドレス<br><small>目標は自らの心に。難易度を選んで自由に築く</small></button>
+      <button id="mdCre" style="background:#5e7252">🎨 クリエイティブ<br><small>資源無限・全施設解禁。理想の城を心ゆくまで（結末の記録は残らない）</small></button>
+    </div>
+  `);
+  document.getElementById("mdScen").onclick=()=>startNewGame("scenario","normal");
+  document.getElementById("mdEnd").onclick=()=>showDiffSelect();
+  document.getElementById("mdCre").onclick=()=>startNewGame("creative","normal");
+}
+function showDiffSelect(){
+  showScroll(`
+    <h2>♾ エンドレス — 難易度</h2>
+    <div class="choice-btns" style="flex-direction:column">
+      <button id="dfE" style="background:#5e7252">🌿 やさしい<br><small>収入1.25倍・夜盗まれ・初期資金潤沢</small></button>
+      <button id="dfN" class="alt">⚖ ふつう<br><small>標準の手応え</small></button>
+      <button id="dfH" style="background:#8a5a2a">🔥 むずかしい<br><small>収入8割・夜盗1.5倍・食料消費増</small></button>
+      <button id="dfX" style="background:#6e1d10">💀 悪夢<br><small>収入7割・夜盗2倍・飢えやすい。一手の誤りが命取り</small></button>
+    </div>
+  `);
+  document.getElementById("dfE").onclick=()=>startNewGame("endless","easy");
+  document.getElementById("dfN").onclick=()=>startNewGame("endless","normal");
+  document.getElementById("dfH").onclick=()=>startNewGame("endless","hard");
+  document.getElementById("dfX").onclick=()=>startNewGame("endless","nightmare");
+}
+function startNewGame(kind,diff){
+  gameMode={kind,diff};
+  if(kind==="creative"){res={gold:999999,food:2000,wood:999,stone:999,lore:0};}
+  else if(diff==="easy"){res={gold:8000,food:150,wood:90,stone:50,lore:0};}
+  else if(diff==="hard"){res={gold:3500,food:60,wood:60,stone:25,lore:0};}
+  else if(diff==="nightmare"){res={gold:2500,food:50,wood:50,stone:20,lore:0};}
+  updateToolbar();updateHUD();
+  const scen=kind==="scenario"?`<hr><div class="chapter"><b>📯 ${SCENARIO_CH[1].t}</b>${SCENARIO_CH[1].open}<br><br>目標：${SCENARIO_CH[1].goal}</div>`:"";
+  const cre=kind==="creative"?`<hr><div class="center"><small>🎨 クリエイティブ：金貨・資材・食料は尽きず、全施設が最初から建てられる</small></div>`:"";
+  showScroll(`
+    <h2>領地拝領の証</h2>
+    <div class="center">辺境の丘に、一つの<b>大門</b>が築かれた。<br>
+    そなたはこの地の城主——年代記の最初の頁である。</div>
+    <hr>
+    <div style="font-size:13px"><span class="help-k">まずは——</span><br>
+    ① 大門の左右に <b>🧺市場</b>・<b>🛏居住区</b>・<b>🌾農場</b>を建てよ（金と人と食の基本）。<br>
+    ② <b>🌀らせん階段</b>と<b>🧱通路</b>で2階へ。城は上へ上へと育つ。<br>
+    ③ 人口30で「砦」へ昇格。家臣<b>ローランド卿</b>が仕官するだろう。<br>
+    ④ <b>冬</b>が来る前に食料を蓄えよ。畑は雪の下では実らぬ。</div>
+    ${scen}${cre}
+    <hr>
+    <div class="center"><small>詳しい心得は右上の 📜 でいつでも読める。<br>そなたの選択は<b>領主の性格</b>と<b>世界観</b>に刻まれ、城の運命を変えていく</small></div>
+    <button onclick="window.__closeScroll()">築城を始める</button>
+  `);
+  saveGame();
+}
+
 // ---------- 起動 ----------
 (async function init(){
   resize();
   const loaded=await loadGame();
   if(!loaded){
     placeGate();
-    setTimeout(()=>{
-      pauseForModal();
-      showScroll(`
-        <h2>領地拝領の証</h2>
-        <div class="center">辺境の丘に、一つの<b>大門</b>が築かれた。<br>
-        そなたはこの地の城主——年代記の最初の頁である。</div>
-        <hr>
-        <div style="font-size:13px"><span class="help-k">まずは——</span><br>
-        ① 大門の左右に <b>🧺市場</b>・<b>🛏居住区</b>・<b>🌾農場</b>を建てよ（金と人と食の基本）。<br>
-        ② <b>🌀らせん階段</b>と<b>🧱通路</b>で2階へ。城は上へ上へと育つ。<br>
-        ③ 人口30で「砦」へ昇格。家臣<b>ローランド卿</b>が仕官するだろう。<br>
-        ④ <b>冬</b>が来る前に食料を蓄えよ。畑は雪の下では実らぬ。</div>
-        <hr>
-        <div class="center"><small>詳しい心得は右上の 📜 でいつでも読める</small></div>
-        <button onclick="window.__closeScroll()">築城を始める</button>
-      `);
-    },400);
+    setTimeout(()=>{showModeSelect();},400);
   }else{
     if(!rooms[0])placeGate();
     toast(cloudUsed
