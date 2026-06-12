@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-N7LGJMFYHL"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-N7LGJMFYHL');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Castle Chronicle 〜城塞年代記〜</title>
+<style>
+  :root{
+    --parchment:#e9dcb8; --parchment-dark:#d4c293; --ink:#3a2c1a;
+    --wood:#4a3422; --wood-dark:#332315; --crimson:#8e2b2b;
+    --gold:#c9a227; --gold-bright:#e8c84a; --stone:#8a8578;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1a1410;
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:var(--ink);
+    touch-action:none;}
+  #game{position:fixed;inset:0;}
+  canvas{display:block;width:100%;height:100%;cursor:grab;}
+  canvas.building{cursor:crosshair;}
+
+  /* ===== 上部バナー ===== */
+  #topbar{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:9px;
+    padding:0 12px;background:linear-gradient(#5a4129,#3e2c19);
+    border-bottom:3px solid #241808; box-shadow:0 3px 10px rgba(0,0,0,.5);z-index:20;
+    font-size:13px;color:#f0e4c4;white-space:nowrap;overflow-x:auto;scrollbar-width:none;}
+  #topbar::-webkit-scrollbar{display:none}
+  .stat{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+  .stat .ico{font-size:16px;}
+  .stat b{font-size:15px;letter-spacing:.3px;color:#fff;font-variant-numeric:tabular-nums;}
+  .stat.buyable{cursor:pointer;border:1px dashed #7a623e;border-radius:4px;padding:2px 6px;}
+  .stat.buyable:active{background:#6b5234;}
+  #goldDelta{font-size:10px;margin-left:1px;}
+  #rankBadge{display:flex;align-items:center;gap:6px;background:var(--crimson);
+    border:2px solid var(--gold);border-radius:4px;padding:3px 10px;flex:0 0 auto;
+    font-weight:bold;font-size:13px;color:#ffe9a8;text-shadow:0 1px 2px rgba(0,0,0,.6);}
+  .spacer{flex:1;min-width:8px;}
+  .tb-btn{flex:0 0 auto;background:#2b1d0f;border:1px solid #6b5234;color:#e9dcb8;border-radius:4px;
+    padding:5px 9px;font-size:14px;cursor:pointer;line-height:1;}
+  .tb-btn.on{background:var(--gold);color:#2b1d0f;border-color:#fff3c4;}
+  #msgline{flex:0 1 auto;font-size:11px;color:#d8c89a;overflow:hidden;text-overflow:ellipsis;max-width:26vw;}
+
+  /* ===== 下部ツールベルト ===== */
+  #toolbar{position:fixed;left:0;right:0;bottom:0;z-index:20;
+    background:linear-gradient(#4a3422,#2e2012);border-top:3px solid #241808;
+    box-shadow:0 -3px 10px rgba(0,0,0,.5);
+    display:flex;gap:6px;padding:8px 10px;overflow-x:auto;scrollbar-width:thin;}
+  .tool{flex:0 0 auto;min-width:76px;background:var(--parchment);border:2px solid #9a8458;border-radius:6px;
+    padding:6px 6px 5px;text-align:center;cursor:pointer;user-select:none;
+    box-shadow:0 2px 0 #1d1408;transition:transform .05s;}
+  .tool:active{transform:translateY(1px);}
+  .tool .t-ico{font-size:20px;line-height:1.1;display:block;}
+  .tool .t-name{font-size:11px;font-weight:bold;display:block;margin-top:1px;}
+  .tool .t-cost{font-size:9px;color:#7a5c20;display:block;line-height:1.3;}
+  .tool.sel{background:var(--gold-bright);border-color:#fff;box-shadow:0 0 8px rgba(232,200,74,.8);}
+  .tool.locked{filter:grayscale(1) brightness(.65);cursor:not-allowed;}
+  .tool.locked .t-cost{color:#555;}
+
+  /* ===== 情報パネル ===== */
+  #infopanel{position:fixed;z-index:25;display:none;width:236px;background:var(--parchment);
+    border:3px solid var(--wood);border-radius:6px;padding:10px 12px;font-size:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,.55);}
+  #infopanel h3{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:16px;
+    border-bottom:1px solid #b9a679;padding-bottom:4px;margin-bottom:6px;}
+  #infopanel .row{display:flex;justify-content:space-between;margin:3px 0;}
+  .happybar{height:8px;background:#c9b98e;border-radius:4px;overflow:hidden;margin:4px 0 6px;}
+  .happybar div{height:100%;border-radius:4px;}
+  #infopanel .ip-btns{display:flex;gap:6px;margin-top:8px;}
+  #infopanel button{flex:1;border:1px solid var(--wood);background:#f3ead0;border-radius:4px;
+    padding:5px;font-size:12px;cursor:pointer;}
+  #infopanel button.danger{background:#e8c0b0;color:#6e1d10;}
+
+  /* ===== 巻物オーバーレイ ===== */
+  #scrollOverlay{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+    background:rgba(10,7,4,.72);}
+  #scrollOverlay.show{display:flex;}
+  .scroll{position:relative;width:min(500px,92vw);max-height:82vh;overflow-y:auto;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(120,90,40,.16), transparent 60%),
+      radial-gradient(ellipse at 85% 90%, rgba(120,90,40,.2), transparent 55%),
+      var(--parchment);
+    border:4px double var(--wood);border-radius:4px;padding:26px 28px 24px;
+    box-shadow:0 0 0 6px #c8b585, 0 14px 50px rgba(0,0,0,.7);
+    font-size:14px;line-height:1.8;}
+  .scroll h2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;text-align:center;font-size:21px;
+    letter-spacing:.13em;color:var(--crimson);margin-bottom:8px;}
+  .scroll .seal{position:absolute;right:18px;bottom:14px;width:44px;height:44px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#c44, #7e1f1f);box-shadow:0 2px 5px rgba(0,0,0,.4);
+    display:flex;align-items:center;justify-content:center;color:#ffe1c0;font-size:19px;font-weight:bold;
+    font-family:serif;transform:rotate(-12deg);pointer-events:none;}
+  .scroll .center{text-align:center;}
+  .scroll .big-rank{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:32px;
+    letter-spacing:.18em;color:#2b1d0f;text-align:center;margin:6px 0;}
+  .scroll hr{border:none;border-top:1px solid #b9a679;margin:10px 0;}
+  .scroll button{display:block;margin:14px auto 0;background:var(--crimson);color:#ffe9a8;border:2px solid var(--gold);
+    border-radius:4px;padding:8px 24px;font-size:15px;font-weight:bold;cursor:pointer;letter-spacing:.08em;}
+  .scroll .choice-btns{display:flex;gap:10px;margin-top:14px;}
+  .scroll .choice-btns button{flex:1;margin:0;font-size:13px;padding:10px 8px;line-height:1.5;}
+  .scroll .choice-btns button.alt{background:#3f5e8c;}
+  .scroll .help-k{font-weight:bold;color:var(--crimson);}
+  .scroll small{color:#6e5b39;}
+  .scroll .resetline{text-align:center;margin-top:10px;}
+  .scroll .resetline button{display:inline-block;background:#6b5234;font-size:12px;padding:5px 14px;margin:0;}
+  .scroll .ev-speaker{display:flex;align-items:center;gap:8px;font-size:12px;color:#6e5b39;margin-bottom:6px;}
+  .scroll .retainer-list{font-size:12px;line-height:1.9;}
+
+  /* トースト */
+  #toasts{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:30;display:flex;
+    flex-direction:column;gap:6px;align-items:center;pointer-events:none;max-width:94vw;}
+  .toast{background:rgba(38,26,12,.92);color:#f0e4c4;border:1px solid var(--gold);border-radius:4px;
+    padding:6px 16px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.5);animation:tin .25s ease-out;
+    max-width:94vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .toast.gold{color:var(--gold-bright);}
+  .toast.bad{color:#f0a08a;border-color:#a05030;}
+  .toast.magic{color:#cda8f0;border-color:#7a50a8;}
+  @keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  /* キャラ/イベント画像 (img/ 配下・2026-06-12 ジェフ兄制作) */
+  .ev-illust{display:block;width:100%;max-width:240px;margin:8px auto;border-radius:8px;
+    border:2px solid #8a6f3e;box-shadow:0 4px 14px rgba(0,0,0,.45);}
+  .ret-portrait{width:72px;height:72px;border-radius:10px;flex-shrink:0;object-fit:cover;
+    border:2px solid #8a6f3e;box-shadow:0 3px 10px rgba(0,0,0,.4);}
+  .sage-portrait{display:block;width:104px;height:104px;border-radius:50%;margin:6px auto 8px;
+    object-fit:cover;border:3px solid #7a50a8;box-shadow:0 0 18px rgba(160,110,220,.5);}
+  .ret-mini{width:24px;height:24px;border-radius:6px;vertical-align:middle;margin-right:4px;
+    object-fit:cover;border:1px solid #8a6f3e;}
+  /* 年代記の章 (昇格演出内の物語ブロック) */
+  .chapter{margin:12px 8px 0;padding:10px 14px;border-left:3px solid #b89d62;
+    background:rgba(184,157,98,.1);font-size:12px;line-height:1.95;color:#5a4a28;text-align:left;
+    border-radius:0 8px 8px 0;}
+  .chapter b{display:block;margin-bottom:4px;letter-spacing:.12em;color:#7a5c1e;}
+  /* 家臣の進化ボタン (心得画面) */
+  .evo-btn{margin-left:6px;padding:2px 10px;border-radius:999px;border:1px solid #c9a227;
+    background:linear-gradient(135deg,#fff3c4,#ffe08a);color:#7a5a00;font-size:10px;
+    font-weight:bold;cursor:pointer;vertical-align:middle;}
+  .evo-btn:hover{filter:brightness(1.06);}
+</style>
+</head>
+<body>
+<div id="game"><canvas id="cv"></canvas></div>
+
+<div id="topbar">
+  <div id="rankBadge"><span id="rankCrest">⚑</span><span id="rankName">開拓地</span></div>
+  <div class="stat"><span class="ico">🪙</span><b id="goldVal">0</b><span id="goldDelta"></span></div>
+  <div class="stat"><span class="ico">🍞</span><b id="foodVal">0</b></div>
+  <div class="stat buyable" id="buyWood" title="タップで木材10を購入"><span class="ico">🪵</span><b id="woodVal">0</b></div>
+  <div class="stat buyable" id="buyStone" title="タップで石材10を購入"><span class="ico">🪨</span><b id="stoneVal">0</b></div>
+  <div class="stat" id="loreStat" style="display:none"><span class="ico" id="loreIco">📖</span><b id="loreVal">0</b></div>
+  <div class="stat"><span class="ico">👥</span><b id="popVal">0</b></div>
+  <div class="stat"><span class="ico" id="seasonIco">🌸</span><b id="dayVal">1年 春1日</b></div>
+  <span class="ico" id="clockIco" style="font-size:16px">☀️</span>
+  <div class="spacer"></div>
+  <div id="msgline"></div>
+  <button class="tb-btn" id="spd0">⏸</button>
+  <button class="tb-btn on" id="spd1">▶</button>
+  <button class="tb-btn" id="spd3">⏩</button>
+  <button class="tb-btn" id="sndBtn">🔔</button>
+  <button class="tb-btn" id="helpBtn">📜</button>
+</div>
+
+<div id="toolbar"></div>
+<div id="infopanel"></div>
+<div id="toasts"></div>
+<div id="scrollOverlay"><div class="scroll" id="scrollBody"></div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Castle Chronicle 〜城塞年代記〜
+   タワー型経営シミュレーション × 中世城塞（オリジナル）
+   小さな砦から、天空城郭へ。
+   ============================================================ */
+
+// ---------- 定数 ----------
+const TILE = 26;
+const COLS = 44;
+const F_MIN = -9, F_MAX = 49;            // 地下10階〜地上50階(0=1F)
+const SKY_H = 220;
+const GROUND_DEPTH = (0 - F_MIN + 1.5) * TILE;
+const WORLD_W = COLS * TILE;
+const WORLD_H = SKY_H + (F_MAX - F_MIN + 1) * TILE + TILE * 2;
+const DAY_LEN = 62;                       // 1日 = 62秒(等速)
+const SEASON_LEN = 6;                     // 1季節 = 6日
+const SEASONS = [
+  {name:"春",ico:"🌸",farm:1.2,visit:1.0,ground:"#4d6b35"},
+  {name:"夏",ico:"☀️",farm:1.5,visit:1.1,ground:"#3f6628"},
+  {name:"秋",ico:"🍂",farm:1.1,visit:1.0,ground:"#6b5a2c"},
+  {name:"冬",ico:"❄️",farm:0,  visit:0.55,ground:"#cfd6dc"},
+];
+const GATE_C = 20, GATE_W = 4;
+
+// 階位（ランク）
+const RANKS = [
+  {name:"開拓地",   pop:0,    crest:"⚑",  col:"#8a8578"},
+  {name:"砦",       pop:30,   crest:"🛡", col:"#5e7252"},
+  {name:"男爵の城", pop:110,  crest:"🦅", col:"#3f5e8c"},
+  {name:"伯爵の城", pop:240,  crest:"🦁", col:"#7a3fa0"},
+  {name:"公爵の城", pop:420,  crest:"🐉", col:"#a0322e"},
+  {name:"王城",     pop:650,  crest:"👑", col:"#c9a227", needsThrone:true},
+  {name:"天空城郭", pop:900,  crest:"🌟", col:"#5a7ec9", needsSky:true},
+];
+
+// 家臣（昇格とともに仕官）
+const RETAINERS = {
+  1:{ico:"⚔️",name:"ローランド卿",role:"騎士団長",buff:"城の治安 +2",
+     line:"「この剣、貴公の城壁に捧げよう」",img:"img/roland.jpg"},
+  2:{ico:"💰",name:"マルコ・ヴェネツィア",role:"財務官",buff:"全収入 +8%",
+     line:"「銭は血液。流れを止めてはなりませぬ」",img:"img/marco.jpg"},
+  3:{ico:"📚",name:"エレオノーラ",role:"宮廷学者",buff:"知識/魔力の獲得 +25%",
+     line:"「書庫の灯を絶やさぬ限り、城は賢くなり続けます」",img:"img/eleonora.jpg"},
+  4:{ico:"🛠️",name:"ガストン",role:"建築家",buff:"建設費 -10%",
+     line:"「儂の石組みは千年崩れん。値切るでないぞ」",img:"img/gaston.jpg"},
+  5:{ico:"🎭",name:"シルヴィア",role:"諜報官",buff:"凶事の被害 半減",
+     line:"「……影はすべて見ております。御安心を」",img:"img/sylvia.jpg"},
+};
+
+// 家臣の進化 (公爵=rank4 で解禁・📜心得から二択・戻せない)。仕様書 sim.md の正史準拠。
+const EVO_RANK=4;
+const EVOS={
+  1:{a:{k:"holy", ico:"✨",name:"聖騎士",     buff:"城の治安 +4"},
+     b:{k:"dark", ico:"🌑",name:"暗黒騎士",   buff:"治安 +3・撃退した夜盗から戦利品"}},
+  2:{a:{k:"mogul",ico:"👑",name:"豪商",       buff:"全収入 +15%"},
+     b:{k:"usurer",ico:"🩸",name:"闇金融",    buff:"全収入 +10%・資材購入 -30%"}},
+  3:{a:{k:"sage", ico:"🎓",name:"大賢者",     buff:"知識/魔力の獲得 +50%"},
+     b:{k:"witch",ico:"🔮",name:"魔女",       buff:"獲得 +40% (幻想の道なら +60%)"}},
+  4:{a:{k:"legend",ico:"🏛",name:"伝説の棟梁",buff:"建設費 -20%"},
+     b:{k:"mbuild",ico:"🪄",name:"魔法建築師",buff:"建設費 -12%・魔法障壁で治安 +1"}},
+  5:{a:{k:"shadow",ico:"🌒",name:"影の支配者",buff:"凶事の被害 1/4"},
+     b:{k:"double",ico:"🎭",name:"二重スパイ",buff:"被害半減のまま・時々諜報収入"}},
+};
+function evoOf(i){const e=retEvo[i];if(!e)return null;const ev=EVOS[i];return ev.a.k===e?ev.a:ev.b.k===e?ev.b:null;}
+
+// 年代記の章 (昇格ごとに物語が進む)
+const CHAPTERS={
+  1:{t:"第一章　丘の上の砦",
+     txt:"最初の冬を越えた朝、領民たちは丘を見上げた。そこにはもう「開拓地」ではなく、砦と呼べる影があった。年代記の筆は、ここから速くなる。"},
+  2:{t:"第二章　鷲の旗",
+     txt:"王都から男爵位の沙汰が届いた。祝宴の夜、見知らぬ老人が城門に立っていたという——賢者が問いを携えて来るのは、いつも栄光の直後である。"},
+  3:{t:"第三章　獅子の座",
+     txt:"市場は三つの国の言葉で値切られ、酒場の歌は朝まで絶えない。伯爵となったそなたを、領民は「丘の獅子」と呼び始めた。だが高い座は、風当たりも強い。"},
+  4:{t:"第四章　竜の血盟",
+     txt:"公爵——その名はもはや辺境のものではない。長く仕えた家臣たちも、新たな高みの入口に立っている。⤴ 進化の道は、📜心得から選んでやるがいい。"},
+  5:{t:"第五章　王の冠",
+     txt:"玉座の間に灯がともる。かつて大門ひとつだった丘は、いま王の城。だが年代記の最後の頁は、まだ白いままだ——空は、まだ遠い。"},
+  6:{t:"終章　天空の年代記",
+     txt:"雲の上、星の隣。人の手が築いた天が、そこにあった。年代記はここで一度閉じられる。だが城の灯は、これからも領民とともに灯り続ける。"},
+};
+
+// 施設定義  cost:{g:金, w:木, s:石}
+const ROOMS = {
+  corridor:{name:"通路",     ico:"🧱", w:1, cost:{g:40,w:1},   rank:0, minF:F_MIN, maxF:F_MAX,
+            desc:"人が歩ける床。上階を支える土台にもなる。"},
+  stairs:  {name:"らせん階段",ico:"🌀", w:1, cost:{g:250,w:4},  rank:0, minF:F_MIN, maxF:F_MAX-1,
+            desc:"この階と上の階をつなぐ。客は階段を登るたび少し苛立つ。"},
+  lift:    {name:"昇降機",   ico:"🛗", w:1, cost:{g:900,w:6,s:4}, rank:2, minF:F_MIN, maxF:F_MAX-1,
+            desc:"滑車式の昇降機。階段より快適で、客の苛立ちを和らげる。"},
+  mlift:   {name:"※特殊昇降機",ico:"✨", w:1, cost:{g:2200,s:10}, rank:2, minF:F_MIN, maxF:F_MAX-1, mile:"lift2",
+            desc:"研究の結晶。乗った客の苛立ちが完全に消える。"},
+  farm:    {name:"農場",     ico:"🌾", w:3, cost:{g:500,w:6},  rank:0, minF:0, maxF:F_MAX, sky:true,
+            food:7, desc:"食料を生む。屋根がない（真上が空いている）場所限定。冬は実らない。"},
+  quarters:{name:"居住区",   ico:"🛏", w:3, cost:{g:600,w:8},  rank:0, minF:0, maxF:F_MAX,
+            pop:6, rent:14, desc:"領民6人が暮らす。家賃が入る。騒がしい隣人を嫌う。"},
+  market:  {name:"市場",     ico:"🧺", w:4, cost:{g:1000,w:8}, rank:0, minF:0, maxF:1,
+            base:95, workers:3, noisy:true, desc:"日中の稼ぎ頭。低層階のみ。働き手3人。"},
+  workshop:{name:"工房",     ico:"🪚", w:3, cost:{g:900,w:10}, rank:1, minF:0, maxF:F_MAX,
+            wood:2, base:25, workers:2, noisy:true, desc:"木材+2/日と少額の工賃を生む。"},
+  quarry:  {name:"石切場",   ico:"⛏", w:3, cost:{g:1100,w:8}, rank:1, minF:F_MIN, maxF:-1,
+            stone:2, workers:2, noisy:true, desc:"地下専用。石材+2/日。城の下から城を掘り出す。"},
+  blacksmith:{name:"鍛冶屋", ico:"⚒", w:3, cost:{g:1300,w:6,s:6}, rank:1, minF:0, maxF:2,
+            base:120, workers:3, noisy:true, desc:"槌音が響く工房。低層階のみ。やや騒がしい。"},
+  tavern:  {name:"酒場",     ico:"🍺", w:4, cost:{g:1600,w:12},rank:1, minF:0, maxF:F_MAX,
+            base:150, workers:3, noisy:true, desc:"夜に賑わう。実入りは良いが隣はうるさい。"},
+  barracks:{name:"兵舎",     ico:"⚔", w:4, cost:{g:1700,s:10},rank:1, minF:0, maxF:F_MAX,
+            pop:4, upkeep:30, security:3, desc:"騎士4人が駐屯。維持費30G/日。治安+3。"},
+  chapel:  {name:"礼拝堂",   ico:"⛪", w:4, cost:{g:2200,s:16},rank:2, minF:0, maxF:F_MAX,
+            upkeep:12, aura:6, desc:"周囲の部屋の幸福度を高める。維持費12G/日。"},
+  treasury:{name:"宝物庫",   ico:"💰", w:3, cost:{g:2800,s:12},rank:2, minF:F_MIN, maxF:-1,
+            desc:"地下専用。所持金の1.5%/日の利子(最大150G)。"},
+  bighouse:{name:"大長屋",   ico:"🏘", w:4, cost:{g:2400,w:20,s:10}, rank:3, minF:0, maxF:F_MAX,
+            pop:14, rent:11, desc:"領民14人がひしめく集合住宅。人口の柱。"},
+  dungeon: {name:"地下牢",   ico:"⛓", w:3, cost:{g:1800,s:10},rank:3, minF:F_MIN, maxF:-1,
+            upkeep:15, security:2, noisy:true, desc:"地下専用。治安+2。隣にあると領民は不安がる。"},
+  noble:   {name:"貴族邸宅", ico:"🏛", w:3, cost:{g:3500,s:25},rank:3, minF:8, maxF:F_MAX,
+            pop:4, rent:55, desc:"9階以上の眺望を求める貴族の館。家賃は破格。"},
+  // ---- 史実の道 ----
+  university:{name:"大学",   ico:"🎓", w:4, cost:{g:3000,s:20},rank:2, minF:0, maxF:F_MAX, route:"real",
+            lore:2, upkeep:10, desc:"知識+2/日。学問は発明をもたらす。"},
+  bank:    {name:"銀行",     ico:"🏦", w:4, cost:{g:3500,s:18},rank:2, minF:0, maxF:3, route:"real",
+            upkeep:8, desc:"所持金の2%/日の利子(最大300G)。低層階のみ。"},
+  // ---- 幻想の道 ----
+  magetower:{name:"魔法使いの塔",ico:"🔮", w:3, cost:{g:3000,s:14},rank:2, minF:0, maxF:F_MAX, route:"fantasy",
+            lore:2, upkeep:10, desc:"魔力+2/日。11階以上に置くと星に近づき+1。"},
+  guild:   {name:"冒険者ギルド",ico:"🗡", w:4, cost:{g:2600,w:14},rank:2, minF:0, maxF:F_MAX, route:"fantasy",
+            base:60, workers:3, quest:true, desc:"クエスト仲介で毎日40〜140Gの変動収入。"},
+  roost:   {name:"竜の巣",   ico:"🐲", w:5, cost:{g:6000,s:30},rank:4, minF:15, maxF:F_MAX, route:"fantasy",
+            security:6, upkeep:25, desc:"16階以上に竜を住まわせる。治安+6。夜空に竜が舞う。"},
+  // ---- 終盤 ----
+  throne:  {name:"王座の間", ico:"👑", w:6, cost:{g:12000,s:40},rank:4, minF:5, maxF:F_MAX,
+            desc:"6階以上に築く王の間。住民1人につき0.6Gの税。王城昇格の必須条件。"},
+  skyhall: {name:"天空の間", ico:"🌟", w:6, cost:{g:30000,s:80},rank:5, minF:40, maxF:F_MAX,
+            desc:"雲の上、41階以上に築く伝説の間。天空城郭への最後の鍵。"},
+};
+const TOOL_ORDER = ["select","demolish","corridor","stairs","lift","mlift","farm","quarters","bighouse","market","workshop","quarry","blacksmith","tavern","barracks","chapel","treasury","dungeon","noble","university","bank","magetower","guild","roost","throne","skyhall"];
+
+// ---------- ゲーム状態 ----------
+let grid = {};
+let rooms = {};
+let nextRoomId = 1;
+let res = {gold:5000, food:80, wood:70, stone:35, lore:0};
+let day = 1;
+let dayT = 0.28;
+let speed = 1;
+let prevSpeed = 1;
+let rankIdx = 0;
+let tool = "select";
+let agents = [];
+let reachable = new Set();
+let lastIncome = 0;
+let soundOn = true;
+let maxRankSeen = 0;
+let throneBuilt = false, skyBuilt = false;
+let route = null;                 // null | "real" | "fantasy"
+let sageShown = false;
+let milestones = {};              // {m1:true, lift2:true, m3:true}
+let undergroundEnd = false;
+let won = false;
+let modalOpen = false;
+let dragon = null;                // 竜の飛翔演出
+let retEvo = {};                  // 家臣の進化 {家臣idx: 進化キー} (セーブ対象)
+
+let cam = {x: GATE_C*TILE - 300, y: WORLD_H - 620};
+
+// ---------- ユーティリティ ----------
+const key = (c,f)=>c+","+f;
+const cellRoom = (c,f)=>{const id=grid[key(c,f)];return id!==undefined?rooms[id]:null;};
+const built = (c,f)=>grid[key(c,f)]!==undefined;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const fmt=n=>Math.floor(n).toLocaleString("ja-JP");
+const seasonIdx=()=>Math.floor((day-1)/SEASON_LEN)%4;
+const yearNum=()=>Math.floor((day-1)/(SEASON_LEN*4))+1;
+const seasonDay=()=>((day-1)%SEASON_LEN)+1;
+const hasRet=i=>rankIdx>=i;
+const loreName=()=>route==="fantasy"?"魔力":"知識";
+
+// ---------- サウンド ----------
+let AC=null;
+function beep(freq,dur,type="square",vol=0.05,when=0){
+  if(!soundOn)return;
+  try{
+    if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(vol,AC.currentTime+when);
+    g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+when+dur);
+    o.connect(g);g.connect(AC.destination);
+    o.start(AC.currentTime+when);o.stop(AC.currentTime+when+dur+0.02);
+  }catch(e){}
+}
+const sndPlace=()=>{beep(180,.08,"square",.06);beep(120,.1,"square",.05,.05);};
+const sndErr=()=>beep(90,.18,"sawtooth",.05);
+const sndCoin=()=>{beep(900,.06,"square",.04);beep(1350,.1,"square",.04,.06);};
+const sndFanfare=()=>{[523,659,784,1047].forEach((f,i)=>beep(f,.22,"triangle",.07,i*.13));};
+const sndMystic=()=>{[880,740,990,1320].forEach((f,i)=>beep(f,.3,"sine",.05,i*.15));};
+
+// ---------- 初期配置 ----------
+function placeGate(){
+  const r={id:0,type:"gate",f:0,c:GATE_C,w:GATE_W,occ:0,happy:100,active:true};
+  rooms[0]=r;
+  for(let i=0;i<GATE_W;i++)grid[key(GATE_C+i,0)]=0;
+}
+
+// ---------- 到達判定（BFS） ----------
+const VERT=t=>t==="stairs"||t==="lift"||t==="mlift";
+function recomputeReach(){
+  reachable=new Set();
+  const q=[];
+  for(let i=0;i<GATE_W;i++){q.push([GATE_C+i,0]);reachable.add(key(GATE_C+i,0));}
+  while(q.length){
+    const [c,f]=q.shift();
+    const r=cellRoom(c,f);
+    const tryAdd=(nc,nf)=>{
+      if(nc<0||nc>=COLS||nf<F_MIN||nf>F_MAX)return;
+      const k=key(nc,nf);
+      if(!grid.hasOwnProperty(k)||reachable.has(k))return;
+      reachable.add(k);q.push([nc,nf]);
+    };
+    tryAdd(c-1,f);tryAdd(c+1,f);
+    if(r&&VERT(r.type))tryAdd(c,f+1);
+    const below=cellRoom(c,f-1);
+    if(below&&VERT(below.type))tryAdd(c,f-1);
+  }
+  for(const id in rooms){
+    const r=rooms[id];
+    r.active=false;
+    for(let i=0;i<r.w;i++)if(reachable.has(key(r.c+i,r.f))){r.active=true;break;}
+    // 農場は青空が必要
+    if(r.active&&ROOMS[r.type]&&ROOMS[r.type].sky){
+      for(let i=0;i<r.w;i++)if(built(r.c+i,r.f+1)){r.active=false;r.blockedSky=true;break;}
+      if(r.active)r.blockedSky=false;
+    }
+  }
+}
+
+// ---------- 幸福度 ----------
+function noisyAt(c,f){
+  const r=cellRoom(c,f);
+  return r&&ROOMS[r.type]&&ROOMS[r.type].noisy;
+}
+function recomputeHappiness(){
+  for(const id in rooms){
+    const r=rooms[id];if(r.type==="gate")continue;
+    let h=72;
+    if(!r.active)h=15;
+    else{
+      const isHome=["quarters","bighouse","noble","barracks"].includes(r.type);
+      if(isHome){
+        let noise=0;
+        if(noisyAt(r.c-1,r.f)||noisyAt(r.c+r.w,r.f))noise++;
+        for(let i=0;i<r.w;i++){if(noisyAt(r.c+i,r.f+1))noise++;if(noisyAt(r.c+i,r.f-1))noise++;}
+        h-=Math.min(34,noise*14);
+        for(const id2 in rooms){const d=rooms[id2];
+          if(d.type==="dungeon"&&Math.abs(d.f-r.f)<=1&&Math.abs(d.c-r.c)<=6){h-=10;break;}}
+      }
+      for(const id2 in rooms){const ch=rooms[id2];
+        if(ch.type==="chapel"&&ch.active&&Math.abs(ch.f-r.f)<=1&&
+           Math.abs((ch.c+ch.w/2)-(r.c+r.w/2))<=ROOMS.chapel.aura+3){h+=16;break;}}
+      if(r.f!==0){
+        let near=false;
+        for(let c=0;c<COLS;c++){
+          const s=cellRoom(c,r.f);
+          if(s&&VERT(s.type)&&Math.abs(c-(r.c+r.w/2))<=11){near=true;break;}
+          const s2=cellRoom(c,r.f-1);
+          if(s2&&VERT(s2.type)&&Math.abs(c-(r.c+r.w/2))<=11){near=true;break;}
+        }
+        if(!near)h-=18;
+      }
+      if((r.type==="quarters"||r.type==="bighouse")&&r.f>=4)h+=6;
+      if(r.type==="noble"&&r.f>=15)h+=8;
+      if(milestones.m1&&route==="fantasy")h+=4; // 魔法の灯
+    }
+    r.happy=clamp(Math.round(h),0,100);
+  }
+}
+
+// ---------- 人口・治安 ----------
+function population(){
+  let p=0;
+  for(const id in rooms){
+    const r=rooms[id],d=ROOMS[r.type];if(!d)continue;
+    if(d.pop)p+=r.occ;
+    if(d.workers&&r.active)p+=d.workers;
+  }
+  return p;
+}
+function security(){
+  let s=0;
+  for(const id in rooms){const r=rooms[id],d=ROOMS[r.type];
+    if(d&&d.security&&r.active)s+=d.security;}
+  if(hasRet(1))s+=(retEvo[1]==="holy"?4:retEvo[1]==="dark"?3:2); // ローランド卿 (進化で強化)
+  if(retEvo[4]==="mbuild")s+=1;       // 魔法建築師の障壁
+  if(route==="real"&&milestones.m3)s+=3; // 火薬
+  return s;
+}
+
+// ---------- 日次処理 ----------
+function dailyTick(){
+  let income=0,expense=0;
+  const pop=population();
+  const sIdx=seasonIdx(), season=SEASONS[sIdx];
+  const commerceF=clamp(pop/45,0.3,1.8)*(sIdx===3?0.85:1);
+  const loreMul=hasRet(3)
+    ?(retEvo[3]==="sage"?1.5:retEvo[3]==="witch"?(route==="fantasy"?1.6:1.4):1.25)
+    :1;
+  let foodGain=0;
+
+  for(const id in rooms){
+    const r=rooms[id],d=ROOMS[r.type];if(!d)continue;
+    if(!r.active){ if(d.pop&&r.occ>0&&Math.random()<.5)r.occ--; continue; }
+    if(d.pop){
+      if(r.happy>=60&&r.occ<d.pop)r.occ+=Math.random()<.85?(r.type==="bighouse"?2:1):0;
+      else if(r.happy<40&&r.occ>0&&Math.random()<.6)r.occ--;
+      r.occ=clamp(r.occ,0,d.pop);
+    }
+    if(d.rent)income+=d.rent*r.occ*(r.happy/100+.3);
+    if(d.base)income+=d.base*commerceF*(0.5+r.happy/150);
+    if(d.quest)income+=rnd(40,140)-d.base*commerceF*0.3; // ギルドはクエスト変動分を上乗せ
+    if(d.upkeep)expense+=d.upkeep;
+    if(d.food)foodGain+=d.food*season.farm;
+    if(d.wood)res.wood=Math.min(999,res.wood+d.wood);
+    if(d.stone)res.stone=Math.min(999,res.stone+d.stone);
+    if(d.lore){
+      let l=d.lore;
+      if(r.type==="magetower"&&r.f>=10)l+=1;
+      res.lore+=l*loreMul;
+    }
+    if(r.type==="treasury")income+=Math.min(150,res.gold*0.015);
+    if(r.type==="bank")income+=Math.min(300,res.gold*0.02);
+    if(r.type==="throne")income+=pop*0.6;
+    if(r.type==="skyhall")income+=pop*0.4;
+  }
+  if(route==="fantasy"&&milestones.m3)income+=120;  // 賢者の石
+
+  // 食料
+  res.food=Math.min(2000,res.food+foodGain);
+  const need=pop*0.12;
+  if(res.food>=need)res.food-=need;
+  else{
+    res.food=0;
+    toast("🍞 食料が尽きた！ 領民が飢えている…（農場を増やし、冬に備えよ）","bad");
+    for(const id in rooms){const r=rooms[id];
+      if(ROOMS[r.type]&&ROOMS[r.type].pop){r.happy=clamp(r.happy-18,0,100);
+        if(r.occ>0&&Math.random()<.4)r.occ--;}}
+  }
+
+  if(hasRet(2))income*=(retEvo[2]==="mogul"?1.15:retEvo[2]==="usurer"?1.10:1.08); // マルコ (進化で強化)
+  if(retEvo[5]==="double"&&Math.random()<.12){
+    const spyG=Math.round(rnd(40,110));res.gold+=spyG;
+    toast("🎭 シルヴィアの諜報網が機密を売り捌いた +"+spyG+"G");
+  }
+  const net=Math.round(income-expense);
+  res.gold+=net;lastIncome=net;
+  if(net!==0)sndCoin();
+  toast((net>=0?"📈 本日の収支 +":"📉 本日の収支 ")+fmt(net)+"G　🍞"+(foodGain?"+"+Math.round(foodGain):"±0"),net>=0?"gold":"bad");
+
+  checkMilestones();
+  if(!maybeChoiceEvent())randomEvent(pop);
+  checkRank(pop);
+  recomputeHappiness();
+  saveGame();
+}
+
+// ---------- 発明／秘術マイルストーン ----------
+function checkMilestones(){
+  if(!route)return;
+  const L=res.lore;
+  const defs=route==="real"
+    ?[["m1",30,"🖨 発明『印刷術』！ 知の広まりで全収入が伸びる(+8%)"],
+      ["lift2",80,"⚙️ 発明『水力昇降機』！ ✨特殊昇降機が建設可能に"],
+      ["m3",150,"💥 発明『火薬』！ 城の治安+3。夜盗は震え上がった"]]
+    :[["m1",30,"🕯 秘術『魔法の灯』習得！ 夜も城が明るく、皆が安らぐ"],
+      ["lift2",80,"🪄 秘術『魔法昇降機』習得！ ✨特殊昇降機が建設可能に"],
+      ["m3",150,"⚗️ 秘術『賢者の石』完成！ 毎日120Gを錬成する"]];
+  for(const [k,th,msg] of defs){
+    if(!milestones[k]&&L>=th){
+      milestones[k]=true;
+      toast(msg,route==="fantasy"?"magic":"gold");
+      sndMystic();updateToolbar();
+    }
+  }
+}
+
+// ---------- 軽イベント（トースト） ----------
+function randomEvent(pop){
+  const roll=Math.random();
+  const guard=hasRet(5)?(retEvo[5]==="shadow"?0.25:0.5):1; // シルヴィア (影の支配者=1/4)
+  if(roll<.07&&pop>20){
+    const sec=security();
+    if(sec*45<pop){
+      const loss=Math.min(res.gold,Math.round((rnd(60,160)+pop*0.8)*guard));
+      res.gold-=loss;
+      toast("⚠️ 夜盗の襲撃！ "+fmt(loss)+"G を奪われた…（兵舎で治安を高めよう）","bad");
+      beep(110,.3,"sawtooth",.06);
+    }else{
+      if(retEvo[1]==="dark"){
+        const loot=Math.round(rnd(50,140));res.gold+=loot;
+        toast("🌑 暗黒騎士ローランドが夜盗を返り討ちにし、戦利品を奪った +"+loot+"G");
+      }else{
+        toast("🛡 夜盗が現れたが、騎士たちが撃退した！");
+      }
+    }
+  }else if(roll<.12){
+    const g=Math.round(rnd(80,220));res.gold+=g;
+    toast("🐪 行商の隊列が城を訪れ、"+fmt(g)+"G の取引があった","gold");
+  }
+}
+
+// ---------- 選択イベント ----------
+const EVENTS=[
+  {id:"cheese",t:"チーズ転がし事件",ico:"🧀",img:"img/event-cheese.jpg",
+   cond:()=>population()>15,
+   txt:"丘の上から巨大な車輪チーズが転がり落ち、市場の屋台に突っ込んだ！ 群衆は大騒ぎだ。",
+   a:{label:"いっそ祭りにする（-80G）",fx:()=>{res.gold-=80;allHomes(10);return "🎉 チーズ転がし祭が誕生！ 領民の幸福度が上がった";}},
+   b:{label:"チーズ屋に弁償させる（+100G）",fx:()=>{res.gold+=100;allHomes(-5);return "🪙 100Gを徴収。だが領民は少し白けている…";}}},
+  {id:"well",t:"井戸から歌声",ico:"🕳",
+   cond:()=>day>5,
+   txt:"古井戸の底から、夜ごと美しい歌声が聞こえると領民が騒いでいる。",
+   a:{label:"調査隊を下ろす",fx:()=>{
+      if(Math.random()<.5){const g=Math.round(rnd(120,260));res.gold+=g;return "🪙 井戸の底から古い金貨壺を発見！ +"+g+"G";}
+      if(route){res.lore+=8;return "✨ 底には謎の古文書が…　"+loreName()+"+8";}
+      return "🐸 正体は声のよく響くカエルだった。領民は大笑い";}},
+   b:{label:"蓋をして封じる",fx:()=>{return "🪨 井戸は封じられた。歌声の主は、永遠の謎となった…";}}},
+  {id:"cats",t:"猫の集会",ico:"🐈",img:"img/event-cats.jpg",
+   cond:()=>population()>30,
+   txt:"満月の夜、城の中庭に何十匹もの猫が集まっている。長老猫がこちらをじっと見ている。",
+   a:{label:"食料を分けてやる（-食料8）",fx:()=>{res.food=Math.max(0,res.food-8);allHomes(8);
+      return "😺 猫たちは城の鼠を狩るようになった。領民は猫を愛し、幸福度が上がった";}},
+   b:{label:"追い払う",fx:()=>{allHomes(-4);return "🐾 猫たちは去った。なぜか領民たちの目が冷たい…";}}},
+  {id:"caravan",t:"大商隊の来訪",ico:"🐪",
+   cond:()=>day>3,
+   txt:"東方から大商隊が到着。資材を山と積んでいる。「殿、良い品がございますぞ」",
+   a:{label:"資材を買い込む（-250G→木+15 石+10）",fx:()=>{res.gold-=250;res.wood=Math.min(999,res.wood+15);res.stone=Math.min(999,res.stone+10);
+      return "📦 木材+15、石材+10 を仕入れた";}},
+   b:{label:"特産品を売りつける（食料-10→+220G）",fx:()=>{if(res.food<10)return "🍞 売るほどの食料がなかった…";
+      res.food-=10;res.gold+=220;return "🪙 特産のチーズと麦酒が飛ぶように売れた。+220G";}}},
+  {id:"coin",t:"偽金事件",ico:"🪙",
+   cond:()=>population()>60,
+   txt:"市場に精巧な偽金貨が出回っている。商人たちは疑心暗鬼だ。",
+   a:{label:"厳しく取り締まる（+150G没収）",fx:()=>{res.gold+=150;allHomes(-4);
+      return "⚖️ 偽金一味を摘発し150Gを没収。ただ、検問続きで街は少々ぴりぴりしている";}},
+   b:{label:"静かに泳がせて元締めを探る",fx:()=>{
+      if(hasRet(5)){res.gold+=320;return "🎭 シルヴィアが元締めの隠し金庫を暴いた！ +320G";}
+      res.gold-=100;return "💸 尻尾を掴めず、被害だけが残った… -100G";}}},
+  {id:"bard",t:"吟遊詩人の来訪",ico:"🎻",
+   cond:()=>true,
+   txt:"旅の吟遊詩人が門前で歌っている。「この城の物語を、歌にして大陸へ広めましょう」",
+   a:{label:"城に滞在させる（-60G）",fx:()=>{res.gold-=60;allHomes(10);
+      return "🎶 城は歌と笑いに満ちた。領民の幸福度が上がった";}},
+   b:{label:"丁重に断る",fx:()=>{return "🚪 詩人は一礼して去った。「いつかまた、物語の続きを」";}}},
+  {id:"harvest",t:"収穫祭",ico:"🎃",cond:()=>seasonIdx()===2&&countType("farm")>0,
+   txt:"実りの秋。農夫たちが収穫祭の開催を願い出ている。",
+   a:{label:"盛大に開く（-120G 食料-15）",fx:()=>{res.gold-=120;res.food=Math.max(0,res.food-15);allHomes(15);
+      return "🎊 城下は宴に沸いた！ 全住居の幸福度が大きく上がった";}},
+   b:{label:"今年は質素に",fx:()=>{allHomes(3);return "🌾 ささやかな宴。それでも実りへの感謝は伝わった";}}},
+  {id:"snowfes",t:"雪まつりの提案",ico:"⛄",cond:()=>seasonIdx()===3,
+   txt:"長く暗い冬。子どもらが「雪の城を作って祭りをしたい」とせがんでいる。",
+   a:{label:"開催する（-150G）",fx:()=>{res.gold-=150;allHomes(12);
+      return "⛄ 雪の小さな城が完成！ 冬の憂鬱が吹き飛んだ";}},
+   b:{label:"春まで我慢",fx:()=>{return "❄️ 冬は静かに過ぎていく…";}}},
+  {id:"envoy",t:"隣国の使者",ico:"🏳",cond:()=>rankIdx>=2,
+   txt:"隣国の使者が謁見を求めている。友好の証を交わしたいようだ。",
+   a:{label:"贈り物を持たせる（-200G）",fx:()=>{res.gold-=200;
+      if(route){res.lore+=6;return "🤝 友好の証として珍しい書物を得た。"+loreName()+"+6";}
+      return "🤝 両国の絆は深まった";}},
+   b:{label:"追い返す",fx:()=>{allHomes(-3);return "😤 使者は憤然と去った。国境がきな臭くなった気がする…";}}},
+  {id:"basement",t:"地下から奇妙な音",ico:"🕯",cond:()=>countBasement()>=3,
+   txt:"地下の最深部から、規則正しい「コン…コン…」という音が響いてくる。",
+   a:{label:"掘り進んでみる",fx:()=>{
+      if(Math.random()<.6){res.stone=Math.min(999,res.stone+20);return "🪨 豊かな石脈を掘り当てた！ 石材+20";}
+      res.gold-=120;return "💥 古い坑道が崩れた。修繕に-120G";}},
+   b:{label:"壁で塞ぐ（石-4）",fx:()=>{res.stone=Math.max(0,res.stone-4);return "🧱 音は止んだ。あれが何だったのかは、誰も知らない";}}},
+  // ---- 史実の道 ----
+  {id:"plague",t:"疫病の影",ico:"🩺",cond:()=>route==="real"&&population()>180,
+   txt:"南の港町で疫病が流行しているとの報。城下にも咳をする者が出始めた。",
+   a:{label:"隔離と検疫を徹底する（-300G）",fx:()=>{res.gold-=300;
+      return "🏥 素早い対処で流行は防がれた。医術の記録は後世の財産となるだろう";}},
+   b:{label:"様子を見る",fx:()=>{
+      if(Math.random()<.5){loseVillagers(0.08);allHomes(-12);return "🕯 病は城下に広がってしまった…領民の一部が失われた";}
+      return "🍀 幸い、流行は城下に届かなかった";}}},
+  {id:"scholar",t:"高名な学者の来訪",ico:"🎓",cond:()=>route==="real"&&countType("university")>0,
+   txt:"大陸に名高い老学者が、貴公の大学で講義をしたいと申し出ている。",
+   a:{label:"歓迎する（-150G）",fx:()=>{res.gold-=150;res.lore+=15;return "📚 講堂は満員！ 知識+15";}},
+   b:{label:"日程が合わず断る",fx:()=>{return "📜 学者は残念そうに去った";}}},
+  // ---- 幻想の道 ----
+  {id:"teaparty",t:"死者との午後茶会",ico:"☕",img:"img/event-teaparty.jpg",cond:()=>route==="fantasy",
+   txt:"礼拝堂の脇に、半透明の貴婦人が現れた。「お茶をご一緒にいかが？ 300年ぶりの客人ですもの」",
+   a:{label:"同席する",fx:()=>{res.lore+=12;allHomes(-4);
+      return "👻 古の城の話をたっぷり聞けた。魔力+12。…領民はちょっと怖がっている";}},
+   b:{label:"聖水を撒く（-50G）",fx:()=>{res.gold-=50;return "💧 貴婦人は「無粋ねえ」と言い残し、霧になった";}}},
+  {id:"dragonvisit",t:"野生の竜、飛来",ico:"🐉",img:"img/dragon.jpg",cond:()=>route==="fantasy"&&countType("roost")===0&&population()>150,
+   txt:"巨大な竜が城の上空を旋回している！ 財宝の匂いを嗅ぎつけたようだ。",
+   a:{label:"貢物を捧げる（-400G）",fx:()=>{res.gold-=400;startDragon();
+      return "🐲 竜は満足げに咆哮し、飛び去った。…少し名残惜しそうに城を見ていた";}},
+   b:{label:"騎士団で追い払う",fx:()=>{
+      if(security()>=8){startDragon();return "⚔️ 騎士団の威容に竜は戦意を失い去った！ 武勇は大陸に轟いた";}
+      res.gold-=600;allHomes(-8);startDragon();
+      return "🔥 竜の尾の一撃で倉が吹き飛んだ… -600G。兵舎を増やすべきだ";}}},
+];
+function allHomes(d){
+  for(const id in rooms){const r=rooms[id];
+    if(ROOMS[r.type]&&(ROOMS[r.type].pop||ROOMS[r.type].rent))r.happy=clamp(r.happy+d,0,100);}
+}
+function loseVillagers(rate){
+  for(const id in rooms){const r=rooms[id];
+    if(ROOMS[r.type]&&ROOMS[r.type].pop&&r.occ>0)r.occ=Math.max(0,r.occ-Math.ceil(r.occ*rate));}
+}
+function countType(t){let n=0;for(const id in rooms)if(rooms[id].type===t&&rooms[id].active)n++;return n;}
+function countBasement(){let n=0;for(const id in rooms)if(rooms[id].f<0)n++;return n;}
+
+let lastEventDay=-3;
+function maybeChoiceEvent(){
+  if(modalOpen)return false;
+  if(day-lastEventDay<3)return false;
+  if(day<3)return false;
+  if(Math.random()>.3)return false;
+  const pool=EVENTS.filter(e=>{try{return e.cond();}catch(_){return false;}});
+  if(!pool.length)return false;
+  const ev=pool[Math.floor(Math.random()*pool.length)];
+  lastEventDay=day;
+  showEvent(ev);
+  return true;
+}
+function showEvent(ev){
+  pauseForModal();
+  beep(660,.12,"triangle",.05);beep(880,.14,"triangle",.05,.1);
+  showScroll(`
+    <h2>${ev.ico} ${ev.t}</h2>
+    ${ev.img?`<img class="ev-illust" src="${ev.img}" alt="" onerror="this.remove()">`:""}
+    <div>${ev.txt}</div>
+    <div class="choice-btns">
+      <button id="evA">${ev.a.label}</button>
+      <button id="evB" class="alt">${ev.b.label}</button>
+    </div>
+  `);
+  document.getElementById("evA").onclick=()=>{resolveEvent(ev.a);};
+  document.getElementById("evB").onclick=()=>{resolveEvent(ev.b);};
+}
+function resolveEvent(choice){
+  const msg=choice.fx();
+  closeScroll();
+  if(msg)toast(msg);
+  recomputeHappiness();updateHUD();saveGame();
+}
+
+// ---------- 賢者の選択（世界観分岐） ----------
+function showSageChoice(){
+  pauseForModal();
+  sndMystic();
+  showScroll(`
+    <h2>🔮 賢者の問い</h2>
+    <img class="sage-portrait" src="img/sage.jpg" alt="" onerror="this.remove()">
+    <div class="center">ある霧の朝、旅の老賢者が城門に立った。<br>
+    「この城は、やがて天を目指すだろう。<br>だがその道は、二つに一つ」</div>
+    <hr>
+    <div style="font-size:13px;">
+    <b>📜 史実の道</b>：学問と商いで栄える。<b>🎓大学</b>（知識）と<b>🏦銀行</b>が解禁。知識の発明（印刷術・水力昇降機・火薬）が城を強くする。<br><br>
+    <b>🔮 幻想の道</b>：魔法と冒険の世界へ。<b>🔮魔法使いの塔</b>（魔力）、<b>🗡冒険者ギルド</b>、やがて<b>🐲竜の巣</b>が解禁。秘術（魔法の灯・魔法昇降機・賢者の石）が目覚める。</div>
+    <div class="choice-btns">
+      <button id="rtReal">📜 史実の道を歩む</button>
+      <button id="rtFan" class="alt">🔮 幻想の道を歩む</button>
+    </div>
+    <div class="center" style="margin-top:8px"><small>※この選択は戻せない</small></div>
+  `);
+  document.getElementById("rtReal").onclick=()=>{chooseRoute("real");};
+  document.getElementById("rtFan").onclick=()=>{chooseRoute("fantasy");};
+}
+function chooseRoute(rt){
+  route=rt;sageShown=true;
+  closeScroll();
+  document.getElementById("loreStat").style.display="flex";
+  document.getElementById("loreIco").textContent=rt==="fantasy"?"✨":"📖";
+  toast(rt==="real"?"📜 城は『史実の道』を歩み始めた。大学・銀行が解禁！":"🔮 城は『幻想の道』に踏み込んだ。魔法塔・冒険者ギルドが解禁！",rt==="fantasy"?"magic":"gold");
+  sndFanfare();
+  updateToolbar();updateHUD();saveGame();
+}
+
+// ---------- ランク ----------
+function checkRank(pop){
+  let target=rankIdx;
+  for(let i=RANKS.length-1;i>=0;i--){
+    const rk=RANKS[i];
+    if(pop>=rk.pop&&(!rk.needsThrone||throneBuilt)&&(!rk.needsSky||skyBuilt)){target=i;break;}
+  }
+  if(target>rankIdx){
+    rankIdx=target;
+    if(rankIdx>maxRankSeen){maxRankSeen=rankIdx;showRankUp();}
+    updateToolbar();updateHUD();
+  } else if(target<rankIdx){
+    rankIdx=target;updateToolbar();updateHUD();
+    toast("📉 人口減少により『"+RANKS[rankIdx].name+"』へ降格…","bad");
+  }
+  if(!sageShown&&rankIdx>=2&&!modalOpen)showSageChoice();
+}
+
+// ---------- 建設・撤去 ----------
+function costAfter(d){
+  const mul=hasRet(4)?(retEvo[4]==="legend"?0.8:retEvo[4]==="mbuild"?0.88:0.9):1; // ガストン (進化で強化)
+  return {g:Math.round((d.cost.g||0)*mul),w:d.cost.w||0,s:d.cost.s||0};
+}
+function costLabel(d){
+  const c=costAfter(d);
+  let s=fmt(c.g)+"G";
+  if(c.w)s+=" "+c.w+"🪵";
+  if(c.s)s+=" "+c.s+"🪨";
+  return s;
+}
+function canPlace(type,c,f){
+  const d=ROOMS[type];if(!d)return {ok:false,why:""};
+  if(rankIdx<d.rank)return{ok:false,why:RANKS[d.rank].name+"で解禁"};
+  if(d.route&&route!==d.route)return{ok:false,why:"道の選択が必要"};
+  if(d.mile&&!milestones[d.mile])return{ok:false,why:loreName()+"を高めて解禁"};
+  if(f<d.minF||f>d.maxF){
+    if(d.minF<0&&d.maxF<0)return{ok:false,why:"地下専用"};
+    if(d.minF>0)return{ok:false,why:(d.minF+1)+"階以上に建設"};
+    return{ok:false,why:"この階には建てられない"};
+  }
+  if(c<0||c+d.w>COLS)return{ok:false,why:"敷地の外"};
+  for(let i=0;i<d.w;i++)if(built(c+i,f))return{ok:false,why:"既に建物がある"};
+  if(f>0){for(let i=0;i<d.w;i++)if(!built(c+i,f-1))return{ok:false,why:"下の階に土台が必要"};}
+  if(f<0){for(let i=0;i<d.w;i++)if(!built(c+i,f+1))return{ok:false,why:"上に床がないと掘れない"};}
+  const cost=costAfter(d);
+  if(res.gold<cost.g)return{ok:false,why:"金貨不足"};
+  if(res.wood<cost.w)return{ok:false,why:"木材不足（🪵タップで購入可）"};
+  if(res.stone<cost.s)return{ok:false,why:"石材不足（🪨タップで購入可）"};
+  return{ok:true,why:""};
+}
+function place(type,c,f){
+  const chk=canPlace(type,c,f);
+  if(!chk.ok){if(chk.why)toast("🚫 "+chk.why,"bad");sndErr();return false;}
+  const d=ROOMS[type];
+  const cost=costAfter(d);
+  res.gold-=cost.g;res.wood-=cost.w;res.stone-=cost.s;
+  const r={id:nextRoomId++,type,f,c,w:d.w,occ:0,happy:70,active:false};
+  rooms[r.id]=r;
+  for(let i=0;i<d.w;i++)grid[key(c+i,f)]=r.id;
+  if(type==="throne"){throneBuilt=true;toast("👑 王座の間が完成した！ 玉座が主を待っている");}
+  if(type==="skyhall"){skyBuilt=true;toast("🌟 天空の間が完成！ 雲の上に玉光が灯る");sndMystic();}
+  if(type==="roost"){toast("🐲 若い竜が巣に舞い降りた！ 城の守護者となるだろう");startDragon();}
+  if(f<=-9&&!undergroundEnd){undergroundEnd=true;showUnderground();}
+  recomputeReach();recomputeHappiness();
+  sndPlace();updateHUD();
+  return true;
+}
+function demolish(c,f){
+  const r=cellRoom(c,f);
+  if(!r){sndErr();return;}
+  if(r.type==="gate"){toast("🚫 大門は城の心臓。壊せない","bad");sndErr();return;}
+  for(let i=0;i<r.w;i++)if(built(r.c+i,r.f+1)){toast("🚫 上に建物が載っている","bad");sndErr();return;}
+  const d=ROOMS[r.type];
+  res.gold+=Math.floor((d.cost.g||0)/2);
+  res.wood=Math.min(999,res.wood+Math.floor((d.cost.w||0)/2));
+  res.stone=Math.min(999,res.stone+Math.floor((d.cost.s||0)/2));
+  for(let i=0;i<r.w;i++)delete grid[key(r.c+i,r.f)];
+  delete rooms[r.id];
+  if(r.type==="throne")throneBuilt=Object.values(rooms).some(x=>x.type==="throne");
+  if(r.type==="skyhall")skyBuilt=Object.values(rooms).some(x=>x.type==="skyhall");
+  recomputeReach();recomputeHappiness();
+  beep(140,.12,"square",.05);updateHUD();hideInfo();
+}
+
+// ---------- 住人エージェント ----------
+const AGENT_CAP=260;
+function spawnAgent(kind,targetRoom){
+  if(agents.length>=AGENT_CAP)return;
+  const c=GATE_C+Math.floor(rnd(0,GATE_W));
+  const a={kind,f:0,x:(c+.5)*TILE+rnd(-6,6),path:null,pi:0,wait:0,leaving:false,
+    stress:0,jp:Math.random()*9,wdir:Math.random()<.5?-1:1,
+    bob:Math.random()*7,speed:rnd(28,58)};
+  if(targetRoom){
+    const p=findPath(c,0,targetRoom.c+Math.floor(rnd(0,targetRoom.w)),targetRoom.f);
+    if(!p)return;
+    a.path=p;a.target=targetRoom.id;
+  }
+  agents.push(a);
+}
+function findPath(c0,f0,c1,f1){
+  const start=key(c0,f0),goal=key(c1,f1);
+  if(!reachable.has(goal)||!reachable.has(start))return null;
+  const prev={};prev[start]=null;
+  const q=[[c0,f0]];
+  while(q.length){
+    const [c,f]=q.shift();
+    if(c===c1&&f===f1){
+      const path=[];let k=key(c,f);
+      while(k){const[pc,pf]=k.split(",").map(Number);path.unshift([pc,pf]);k=prev[k];}
+      return path;
+    }
+    const r=cellRoom(c,f);
+    const push=(nc,nf)=>{const k=key(nc,nf);
+      if(grid.hasOwnProperty(k)&&!(k in prev)){prev[k]=key(c,f);q.push([nc,nf]);}};
+    push(c-1,f);push(c+1,f);
+    if(r&&VERT(r.type))push(c,f+1);
+    const below=cellRoom(c,f-1);
+    if(below&&VERT(below.type))push(c,f-1);
+  }
+  return null;
+}
+function agentTick(dt){
+  const isDay=dayT>0.05&&dayT<0.66;
+  const evening=dayT>0.42&&dayT<0.72;
+  const season=SEASONS[seasonIdx()];
+  const visitMul=(season.visit)*((route==="fantasy"&&milestones.m1&&!isDay)?1.6:1);
+  // 群衆スポーン
+  const shops=Object.values(rooms).filter(r=>r.active&&ROOMS[r.type]&&ROOMS[r.type].base);
+  const homes=Object.values(rooms).filter(r=>r.active&&(r.type==="quarters"||r.type==="bighouse")&&r.occ>0);
+  const pop=population();
+  const crowd=clamp(3+shops.length*2.4+pop*0.32,3,AGENT_CAP*0.9);
+  if((shops.length||homes.length)&&agents.length<crowd&&Math.random()<dt*(isDay?2.2:1.1)*visitMul){
+    const burst=1+Math.floor(Math.random()*3);
+    for(let n=0;n<burst;n++){
+      let pool=shops;
+      if(!isDay){const tv=shops.filter(s=>s.type==="tavern");if(tv.length&&Math.random()<.7)pool=tv;}
+      if(evening&&homes.length&&Math.random()<.45)pool=homes;
+      if(!pool||!pool.length)pool=shops.length?shops:homes;
+      if(pool.length)spawnAgent("visitor",pool[Math.floor(Math.random()*pool.length)]);
+    }
+  }
+  // 騎士の巡回
+  const barr=Object.values(rooms).filter(r=>r.active&&r.type==="barracks"&&r.occ>0);
+  if(barr.length&&agents.filter(a=>a.kind==="knight").length<barr.length*3&&Math.random()<dt*.35){
+    spawnAgent("knight",barr[Math.floor(Math.random()*barr.length)]);
+  }
+  for(let i=agents.length-1;i>=0;i--){
+    const a=agents[i];
+    if(a.wait>0){a.wait-=dt;
+      const rr=rooms[a.target];
+      if(rr&&speed>0){
+        const minX=rr.c*TILE+3,maxX=(rr.c+rr.w)*TILE-3;
+        a.x+=a.wdir*a.speed*0.4*dt*speed;
+        if(a.x<minX){a.x=minX;a.wdir=1;}else if(a.x>maxX){a.x=maxX;a.wdir=-1;}
+        if(Math.random()<dt*1.6)a.wdir*=-1;
+      }
+      a.stress=Math.max(0,a.stress-dt*14);
+      if(a.wait<=0){
+        const c=Math.floor(a.x/TILE);
+        const p=findPath(clamp(c,0,COLS-1),a.f,GATE_C+1,0);
+        if(p){a.path=p;a.pi=0;a.leaving=true;}else{agents.splice(i,1);}
+      }
+      continue;
+    }
+    if(!a.path){agents.splice(i,1);continue;}
+    const node=a.path[a.pi];
+    if(!node){
+      if(a.leaving){agents.splice(i,1);}
+      else a.wait=rnd(4,10);
+      continue;
+    }
+    const [tc,tf]=node;
+    const tx=(tc+.5)*TILE;
+    if(tf!==a.f){
+      // 昇降手段によってストレス変化
+      const lower=Math.min(tf,a.f);
+      const tr=cellRoom(tc,lower);
+      if(tr){
+        if(tr.type==="stairs")a.stress=Math.min(100,a.stress+7);
+        else if(tr.type==="lift")a.stress=Math.max(0,a.stress-12);
+        else if(tr.type==="mlift")a.stress=0;
+      }
+      a.f=tf;
+    }
+    const dx=tx-a.x;
+    const step=a.speed*dt*(speed||0);
+    if(Math.abs(dx)<=step){a.x=tx;a.pi++;
+      if(a.pi>=a.path.length){a.path=null;
+        if(a.leaving)agents.splice(i,1);else a.wait=rnd(4,10);}
+    }else{a.x+=Math.sign(dx)*step;a.stress=Math.min(100,a.stress+dt*speed*5);}
+    if(!built(Math.floor(a.x/TILE),a.f))agents.splice(i,1);
+  }
+}
+
+// ---------- 竜の飛翔演出 ----------
+function startDragon(){
+  dragon={x:-80,y:rnd(80,260),dir:1,t:0};
+  if(Math.random()<.5){dragon.x=WORLD_W+80;dragon.dir=-1;}
+}
+
+// ---------- 描画 ----------
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+let DPR=1;
+function resize(){
+  DPR=window.devicePixelRatio||1;
+  cv.width=cv.clientWidth*DPR;cv.height=cv.clientHeight*DPR;
+}
+window.addEventListener("resize",resize);
+
+function floorTopY(f){return WORLD_H - GROUND_DEPTH - (f - F_MIN + 1) * TILE;}
+const GROUND_Y = floorTopY(0)+TILE;
+
+let stars=[];for(let i=0;i<110;i++)stars.push([Math.random(),Math.random()*.55,Math.random()]);
+let clouds=[];for(let i=0;i<7;i++)clouds.push({x:Math.random()*WORLD_W,y:rnd(30,260),w:rnd(70,150),s:rnd(3,8)});
+let snow=[];for(let i=0;i<120;i++)snow.push({x:Math.random(),y:Math.random(),v:rnd(14,34),sw:rnd(1,3)});
+
+function skyColors(t){
+  const phases=[
+    [0.00,[255,183,120],[120,170,210]],
+    [0.12,[150,205,235],[80,140,200]],
+    [0.42,[235,160,110],[90,100,160]],
+    [0.55,[40,40,80],[12,14,38]],
+    [0.75,[16,18,44],[5,6,20]],
+    [0.92,[120,90,130],[30,40,80]],
+    [1.00,[255,183,120],[120,170,210]],
+  ];
+  let a=phases[0],b=phases[1];
+  for(let i=0;i<phases.length-1;i++){
+    if(t>=phases[i][0]&&t<=phases[i+1][0]){a=phases[i];b=phases[i+1];break;}
+  }
+  const u=(t-a[0])/(b[0]-a[0]||1);
+  const mix=(p,q)=>p.map((v,i)=>Math.round(v+(q[i]-v)*u));
+  return [mix(a[1],b[1]),mix(a[2],b[2])];
+}
+const isNight=()=>dayT>0.52||dayT<0.02;
+
+function draw(){
+  const W=cv.width/DPR,H=cv.height/DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  cam.x=clamp(cam.x,-160,WORLD_W-W+160);
+  cam.y=clamp(cam.y,0,WORLD_H-H+40);
+  ctx.save();ctx.translate(-cam.x,-cam.y);
+  const sIdx=seasonIdx(), winter=sIdx===3;
+
+  // --- 空 ---
+  const [top,bot]=skyColors(dayT);
+  const g=ctx.createLinearGradient(0,cam.y,0,GROUND_Y);
+  g.addColorStop(0,`rgb(${top.join(",")})`);
+  g.addColorStop(1,`rgb(${bot.join(",")})`);
+  ctx.fillStyle=g;ctx.fillRect(cam.x,cam.y,W,Math.max(0,GROUND_Y-cam.y));
+  const night=isNight();
+  if(night){
+    ctx.fillStyle="rgba(255,255,230,.9)";
+    for(const [sx,sy,tw] of stars){
+      const a=.4+.6*Math.abs(Math.sin(perfNow*.001*tw*3+tw*9));
+      ctx.globalAlpha=a;
+      ctx.fillRect(cam.x+sx*W, cam.y+sy*(GROUND_Y-cam.y)*.8, 2,2);
+    }
+    ctx.globalAlpha=1;
+  }
+  const arcT=(dayT<0.5)?dayT/0.5:((dayT-0.5)/0.5);
+  const cx=cam.x+W*(0.1+0.8*arcT);
+  const cy=GROUND_Y-120-Math.sin(arcT*Math.PI)*Math.max(120,(GROUND_Y-cam.y-180));
+  if(dayT<0.5){
+    ctx.fillStyle="#ffe9a0";ctx.beginPath();ctx.arc(cx,cy,22,0,7);ctx.fill();
+    ctx.fillStyle="rgba(255,233,160,.25)";ctx.beginPath();ctx.arc(cx,cy,38,0,7);ctx.fill();
+  }else{
+    ctx.fillStyle="#e8e6da";ctx.beginPath();ctx.arc(cx,cy,17,0,7);ctx.fill();
+    ctx.fillStyle=`rgb(${top.join(",")})`;ctx.beginPath();ctx.arc(cx+7,cy-4,15,0,7);ctx.fill();
+  }
+  ctx.fillStyle=night?"rgba(60,65,95,.55)":"rgba(255,255,255,.75)";
+  for(const cl of clouds){
+    const x=((cl.x+perfNow*.001*cl.s)%(WORLD_W+300))-150;
+    ctx.beginPath();
+    ctx.ellipse(x,cl.y+cam.y*0.15+60,cl.w,cl.w*.32,0,0,7);
+    ctx.ellipse(x+cl.w*.5,cl.y+cam.y*0.15+50,cl.w*.6,cl.w*.26,0,0,7);
+    ctx.fill();
+  }
+  // 遠景の山
+  ctx.fillStyle=night?"#181c30":(winter?"#aab6c4":"#5d7390");
+  ctx.beginPath();ctx.moveTo(cam.x,GROUND_Y);
+  for(let x=0;x<=W;x+=40){
+    const wx=cam.x+x;
+    ctx.lineTo(wx,GROUND_Y-60-Math.abs(Math.sin(wx*.008))*110);
+  }
+  ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
+  ctx.fillStyle=night?"#11142a":(winter?"#8b9aac":"#46597a");
+  ctx.beginPath();ctx.moveTo(cam.x,GROUND_Y);
+  for(let x=0;x<=W;x+=40){
+    const wx=cam.x+x;
+    ctx.lineTo(wx,GROUND_Y-30-Math.abs(Math.sin(wx*.013+5))*70);
+  }
+  ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
+
+  // --- 大地 ---
+  ctx.fillStyle=night?(winter?"#5e656e":"#241a10"):SEASONS[sIdx].ground;
+  ctx.fillRect(cam.x,GROUND_Y,W,5);
+  ctx.fillStyle=night?"#19120b":"#3b2c1d";
+  ctx.fillRect(cam.x,GROUND_Y+5,W,WORLD_H-GROUND_Y);
+  ctx.fillStyle="rgba(0,0,0,.18)";
+  for(let x=Math.floor(cam.x/40)*40;x<cam.x+W;x+=40)
+    for(let y=GROUND_Y+18;y<WORLD_H;y+=26)
+      ctx.fillRect(x+(y%52?12:0),y,16,5);
+
+  // --- 竜 ---
+  if(dragon){
+    dragon.t+=0.016;
+    dragon.x+=dragon.dir*1.7;
+    const dy=dragon.y+Math.sin(dragon.t*2)*12;
+    const flap=Math.sin(dragon.t*7);
+    ctx.fillStyle=night?"#1a1626":"#3a2c44";
+    ctx.save();ctx.translate(dragon.x,dy+cam.y*0.1);
+    if(dragon.dir<0)ctx.scale(-1,1);
+    ctx.beginPath();ctx.ellipse(0,0,26,7,0,0,7);ctx.fill();           // 胴
+    ctx.beginPath();ctx.moveTo(20,-2);ctx.lineTo(36,-6);ctx.lineTo(22,4);ctx.closePath();ctx.fill(); // 頭
+    ctx.beginPath();ctx.moveTo(-22,0);ctx.lineTo(-40,-4+flap*2);ctx.lineTo(-26,4);ctx.closePath();ctx.fill(); // 尾
+    ctx.beginPath();ctx.moveTo(-4,-3);ctx.lineTo(6,-26*Math.abs(flap)-6);ctx.lineTo(10,-3);ctx.closePath();ctx.fill(); // 翼
+    ctx.restore();
+    if(dragon.x<-150||dragon.x>WORLD_W+150)dragon=null;
+  }
+
+  // --- 城（部屋） ---
+  for(const id in rooms)drawRoom(rooms[id],night,sIdx);
+
+  // --- 胸壁＋雪 ---
+  drawBattlements(night,winter);
+
+  // --- 旗 ---
+  drawBanner(night);
+
+  // --- 住人 ---
+  for(const a of agents)drawAgent(a,night);
+
+  // --- 雪 ---
+  if(winter){
+    ctx.fillStyle="rgba(255,255,255,.85)";
+    for(const s of snow){
+      const x=cam.x+((s.x*W+perfNow*.01*s.sw)%W);
+      const y=cam.y+((s.y*H+perfNow*.001*s.v*8)%H);
+      ctx.fillRect(x,y,s.sw,s.sw);
+    }
+  }
+
+  // --- 配置プレビュー ---
+  if(hoverCell&&tool!=="select"&&tool!=="demolish"){
+    const d=ROOMS[tool];
+    if(d){
+      const chk=canPlace(tool,hoverCell[0],hoverCell[1]);
+      ctx.fillStyle=chk.ok?"rgba(120,220,120,.4)":"rgba(220,80,60,.4)";
+      ctx.fillRect(hoverCell[0]*TILE,floorTopY(hoverCell[1]),d.w*TILE,TILE);
+      ctx.strokeStyle=chk.ok?"#9f9":"#f66";
+      ctx.strokeRect(hoverCell[0]*TILE+.5,floorTopY(hoverCell[1])+.5,d.w*TILE-1,TILE-1);
+    }
+  }
+  if(hoverCell&&tool==="demolish"){
+    const r=cellRoom(hoverCell[0],hoverCell[1]);
+    if(r&&r.type!=="gate"){
+      ctx.fillStyle="rgba(220,60,40,.35)";
+      ctx.fillRect(r.c*TILE,floorTopY(r.f),r.w*TILE,TILE);
+    }
+  }
+  ctx.restore();
+}
+
+function drawRoom(r,night,sIdx){
+  const x=r.c*TILE,y=floorTopY(r.f),w=r.w*TILE,h=TILE;
+  let base=r.f<0?"#4f463c":"#7b746a";
+  ctx.fillStyle=base;ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle="rgba(0,0,0,.18)";ctx.lineWidth=1;
+  for(let i=0;i<r.w*2;i++){
+    const bx=x+i*TILE/2+((r.f%2)?TILE/4:0);
+    ctx.strokeRect(bx+.5,y+.5,TILE/2,TILE/2);
+    ctx.strokeRect(bx+.5-TILE/4,y+TILE/2+.5,TILE/2,TILE/2);
+  }
+  ctx.fillStyle="#3a2e20";ctx.fillRect(x,y+h-3,w,3);
+  const t=perfNow*.001;
+  const warm=(a)=>`rgba(255,190,90,${a})`;
+  switch(r.type){
+    case "gate":{
+      ctx.fillStyle="#5d4326";
+      ctx.beginPath();
+      ctx.moveTo(x+w*.18,y+h);ctx.lineTo(x+w*.18,y+h*.38);
+      ctx.quadraticCurveTo(x+w*.5,y-h*.1,x+w*.82,y+h*.38);
+      ctx.lineTo(x+w*.82,y+h);ctx.closePath();ctx.fill();
+      ctx.strokeStyle="#2e2113";ctx.lineWidth=2;
+      for(let i=1;i<5;i++){const gx=x+w*.18+(w*.64)*i/5;
+        ctx.beginPath();ctx.moveTo(gx,y+h*.3);ctx.lineTo(gx,y+h);ctx.stroke();}
+      ctx.lineWidth=1;
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w*.46,y+h*.55,4,4);
+      break;}
+    case "corridor":{
+      if(night){
+        const fl=.5+.3*Math.sin(t*9+r.c);
+        ctx.fillStyle=warm(.18*fl+.1);
+        ctx.beginPath();ctx.arc(x+w/2,y+9,7,0,7);ctx.fill();
+        ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-1,y+8,2,6);
+        ctx.fillStyle="rgba(255,140,40,.8)";ctx.fillRect(x+w/2-2,y+5,4,4);
+      }
+      break;}
+    case "stairs":{
+      ctx.fillStyle="#5a5248";
+      for(let i=0;i<5;i++)ctx.fillRect(x+3+i*4,y+h-4-i*4.4,TILE-6-i*4,4);
+      ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(x+2,y,3,h);
+      break;}
+    case "lift":{
+      ctx.fillStyle="#3a3328";ctx.fillRect(x+4,y+2,TILE-8,h-5);
+      ctx.strokeStyle="#caa53c";ctx.strokeRect(x+4.5,y+2.5,TILE-9,h-6);
+      const ly=y+5+(Math.sin(t*1.5+r.c)*.5+.5)*(h-14);
+      ctx.fillStyle="#8a7a52";ctx.fillRect(x+6,ly,TILE-12,6);
+      ctx.strokeStyle="#6b5234";
+      ctx.beginPath();ctx.moveTo(x+TILE/2,y+2);ctx.lineTo(x+TILE/2,ly);ctx.stroke();
+      break;}
+    case "mlift":{
+      const fl=.5+.5*Math.sin(t*4+r.c);
+      ctx.fillStyle="#241a32";ctx.fillRect(x+4,y+2,TILE-8,h-5);
+      ctx.strokeStyle=route==="fantasy"?"#9a6ae0":"#5a9ad0";
+      ctx.strokeRect(x+4.5,y+2.5,TILE-9,h-6);
+      ctx.fillStyle=route==="fantasy"?`rgba(170,110,240,${.3+.4*fl})`:`rgba(110,170,240,${.3+.4*fl})`;
+      ctx.fillRect(x+6,y+4,TILE-12,h-9);
+      break;}
+    case "farm":{
+      const cropCol=[["#7cb05a","#9ac56e"],["#caa53c","#e0c060"],["#b08030","#caa040"],["#cfd6dc","#e8edf2"]][sIdx];
+      ctx.fillStyle="#4a3a26";ctx.fillRect(x,y+h-8,w,5);
+      for(let i=0;i<r.w*4;i++){
+        const px=x+4+i*(w-8)/(r.w*4);
+        ctx.fillStyle=cropCol[i%2];
+        if(sIdx===3)ctx.fillRect(px,y+h-9,3,2);
+        else{
+          ctx.fillRect(px,y+h-15,2,8);
+          ctx.fillRect(px-1,y+h-16,4,3);
+        }
+      }
+      if(r.blockedSky){ctx.fillStyle="rgba(0,0,0,.4)";ctx.fillRect(x,y,w,h);}
+      break;}
+    case "quarters":{
+      const lit=night&&r.occ>0;
+      for(let i=0;i<r.w;i++){
+        ctx.fillStyle=lit?warm(.85):"#2a3140";
+        ctx.fillRect(x+i*TILE+8,y+5,10,11);
+        ctx.strokeStyle="#2e2113";ctx.strokeRect(x+i*TILE+8.5,y+5.5,9,10);
+        ctx.beginPath();ctx.moveTo(x+i*TILE+13,y+5);ctx.lineTo(x+i*TILE+13,y+16);ctx.stroke();
+      }
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+4,y+h-8,12,5);
+      ctx.fillStyle="#b8b0a0";ctx.fillRect(x+4,y+h-9,5,3);
+      break;}
+    case "bighouse":{
+      const lit=night&&r.occ>0;
+      for(let i=0;i<r.w*2;i++){
+        ctx.fillStyle=(lit&&(i%3!==2))?warm(.8):"#2a3140";
+        ctx.fillRect(x+4+i*TILE/2,y+5,8,8);
+        ctx.strokeStyle="#2e2113";ctx.strokeRect(x+4.5+i*TILE/2,y+5.5,7,7);
+      }
+      ctx.fillStyle="#5d4a32";
+      for(let i=0;i<r.w;i++)ctx.fillRect(x+6+i*TILE,y+h-7,14,4);
+      break;}
+    case "noble":{
+      ctx.fillStyle="#9a937f";ctx.fillRect(x,y,w,4);
+      for(let i=0;i<r.w;i++){
+        const wx=x+i*TILE+7;
+        ctx.fillStyle=night?warm(.9):"#324a66";
+        ctx.beginPath();
+        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+9);
+        ctx.quadraticCurveTo(wx+5,y+3,wx+10,y+9);ctx.lineTo(wx+10,y+18);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#caa53c";ctx.stroke();
+      }
+      ctx.fillStyle="#7a3fa0";ctx.fillRect(x+w/2-3,y+4,6,9);
+      ctx.strokeStyle="#caa53c";ctx.strokeRect(x+w/2-3.5,y+3.5,7,10);
+      break;}
+    case "market":{
+      for(let i=0;i<r.w*2;i++){
+        ctx.fillStyle=i%2?"#b8412e":"#e6dcc2";
+        ctx.beginPath();
+        ctx.moveTo(x+i*TILE/2,y);ctx.lineTo(x+(i+1)*TILE/2,y);
+        ctx.lineTo(x+(i+1)*TILE/2-3,y+7);ctx.lineTo(x+i*TILE/2+3,y+7);
+        ctx.closePath();ctx.fill();
+      }
+      ctx.fillStyle="#8a6a3a";ctx.fillRect(x+5,y+h-9,9,6);
+      ctx.fillRect(x+w-16,y+h-11,10,8);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-14,y+h-13,3,3);
+      ctx.fillStyle="#7c9456";ctx.fillRect(x+7,y+h-12,3,3);
+      ctx.fillStyle="#b8412e";ctx.fillRect(x+10,y+h-12,3,3);
+      break;}
+    case "workshop":{
+      ctx.fillStyle="#7a5430";
+      ctx.fillRect(x+5,y+h-8,16,4);ctx.fillRect(x+8,y+h-12,16,4);
+      ctx.fillStyle="#9aa6b2";
+      ctx.beginPath();ctx.moveTo(x+w-16,y+h-4);ctx.lineTo(x+w-10,y+8);ctx.lineTo(x+w-8,y+h-4);ctx.closePath();ctx.fill();
+      break;}
+    case "quarry":{
+      ctx.fillStyle="#5e564a";
+      ctx.beginPath();ctx.moveTo(x+6,y+h-3);ctx.lineTo(x+12,y+9);ctx.lineTo(x+19,y+h-3);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.moveTo(x+15,y+h-3);ctx.lineTo(x+22,y+12);ctx.lineTo(x+27,y+h-3);ctx.closePath();ctx.fill();
+      ctx.strokeStyle="#9aa6b2";ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x+w-16,y+8);ctx.lineTo(x+w-8,y+15);ctx.stroke();ctx.lineWidth=1;
+      break;}
+    case "blacksmith":{
+      const glow=.5+.5*Math.sin(t*6+r.c);
+      ctx.fillStyle=`rgba(255,${90+glow*60},30,${.55+.3*glow})`;
+      ctx.fillRect(x+5,y+8,10,12);
+      ctx.fillStyle="#33291c";ctx.fillRect(x+4,y+6,12,3);
+      ctx.fillStyle="#454a50";ctx.fillRect(x+w-18,y+h-9,10,3);
+      ctx.fillRect(x+w-15,y+h-6,4,4);
+      break;}
+    case "tavern":{
+      const lit=night;
+      ctx.fillStyle=lit?warm(.9):"#3a3220";
+      ctx.fillRect(x+7,y+5,9,10);ctx.fillRect(x+w-17,y+5,9,10);
+      ctx.strokeStyle="#2e2113";ctx.strokeRect(x+7.5,y+5.5,8,9);ctx.strokeRect(x+w-16.5,y+5.5,8,9);
+      ctx.fillStyle="#7a5430";ctx.fillRect(x+w/2-5,y+h-12,10,9);
+      ctx.strokeStyle="#3e2a16";ctx.strokeRect(x+w/2-5.5,y+h-12.5,11,10);
+      ctx.beginPath();ctx.moveTo(x+w/2-5,y+h-8);ctx.lineTo(x+w/2+5,y+h-8);ctx.stroke();
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+2,y+3,2,7);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x,y+9,7,5);
+      break;}
+    case "barracks":{
+      const shieldCols=["#8e2b2b","#3f5e8c"];
+      for(let i=0;i<2;i++){
+        const sx=x+10+i*(w-26);
+        ctx.fillStyle=shieldCols[i];
+        ctx.beginPath();ctx.moveTo(sx,y+5);ctx.lineTo(sx+9,y+5);
+        ctx.lineTo(sx+9,y+12);ctx.lineTo(sx+4.5,y+17);ctx.lineTo(sx,y+12);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#caa53c";ctx.stroke();
+      }
+      ctx.strokeStyle="#9aa6b2";ctx.beginPath();
+      ctx.moveTo(x+w/2-3,y+h-2);ctx.lineTo(x+w/2+2,y+4);
+      ctx.moveTo(x+w/2+4,y+h-2);ctx.lineTo(x+w/2-1,y+4);ctx.stroke();
+      break;}
+    case "chapel":{
+      const cols=["#b8412e","#3f5e8c","#caa53c"];
+      for(let i=0;i<3;i++){
+        const wx=x+w/2-21+i*15;
+        ctx.fillStyle=night?cols[i]:"#2a3140";
+        ctx.beginPath();
+        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+10);
+        ctx.quadraticCurveTo(wx+4,y+3,wx+8,y+10);ctx.lineTo(wx+8,y+18);ctx.closePath();
+        ctx.globalAlpha=night?.95:.8;ctx.fill();ctx.globalAlpha=1;
+        ctx.strokeStyle="#2e2113";ctx.stroke();
+      }
+      break;}
+    case "treasury":{
+      ctx.fillStyle="#caa53c";
+      ctx.beginPath();ctx.arc(x+12,y+h-7,5,Math.PI,0);ctx.fill();
+      ctx.beginPath();ctx.arc(x+20,y+h-6,4,Math.PI,0);ctx.fill();
+      ctx.fillRect(x+8,y+h-5,18,3);
+      const sp=.5+.5*Math.sin(t*4+r.c*2);
+      ctx.fillStyle=`rgba(255,240,160,${sp})`;ctx.fillRect(x+14,y+h-13,2,2);
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-21,y+h-11,14,8);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-21,y+h-8,14,2);
+      break;}
+    case "dungeon":{
+      ctx.strokeStyle="#222";ctx.lineWidth=2;
+      for(let i=0;i<5;i++){const gx=x+6+i*(w-12)/4;
+        ctx.beginPath();ctx.moveTo(gx,y+4);ctx.lineTo(gx,y+h-3);ctx.stroke();}
+      ctx.lineWidth=1;
+      ctx.strokeStyle="#444";
+      ctx.beginPath();ctx.moveTo(x+5,y+8);ctx.lineTo(x+w-5,y+8);ctx.stroke();
+      break;}
+    case "university":{
+      ctx.fillStyle="#9a937f";
+      for(let i=0;i<r.w+1;i++)ctx.fillRect(x+3+i*(w-8)/r.w,y+5,4,h-8);
+      ctx.fillStyle="#9a937f";ctx.fillRect(x,y+2,w,4);
+      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+w/2-7,y+h-12,6,8);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+w/2,y+h-12,6,8);
+      break;}
+    case "bank":{
+      ctx.fillStyle="#9a937f";
+      for(let i=0;i<3;i++)ctx.fillRect(x+8+i*(w-22)/2,y+6,5,h-10);
+      ctx.fillStyle="#9a937f";
+      ctx.beginPath();ctx.moveTo(x+4,y+6);ctx.lineTo(x+w/2,y);ctx.lineTo(x+w-4,y+6);ctx.closePath();ctx.fill();
+      ctx.fillStyle="#caa53c";ctx.beginPath();ctx.arc(x+w/2,y+h-9,4,0,7);ctx.fill();
+      ctx.fillStyle="#7a5c20";ctx.font="bold 7px serif";ctx.fillText("G",x+w/2-2.5,y+h-6.5);
+      break;}
+    case "magetower":{
+      const fl=.5+.5*Math.sin(t*3+r.c);
+      ctx.fillStyle="#3a2c4e";ctx.fillRect(x+3,y+2,w-6,h-5);
+      ctx.fillStyle=`rgba(170,110,240,${.4+.4*fl})`;
+      ctx.beginPath();ctx.arc(x+w/2,y+10,5+fl*2,0,7);ctx.fill();
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-1,y+14,2,8);
+      ctx.fillStyle=`rgba(220,180,255,${.5+.5*fl})`;ctx.fillRect(x+w/2-1,y+9,2,2);
+      break;}
+    case "guild":{
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+3,y+4,10,12);
+      ctx.fillStyle="#e6dcc2";ctx.font="9px serif";ctx.fillText("依",x+5,y+13);
+      ctx.strokeStyle="#9aa6b2";ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x+w-18,y+h-4);ctx.lineTo(x+w-10,y+6);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+w-14,y+9);ctx.lineTo(x+w-8,y+9);ctx.stroke();ctx.lineWidth=1;
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-24,y+h-8,5,5);
+      break;}
+    case "roost":{
+      ctx.fillStyle="#2c2620";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 眠る竜
+      ctx.fillStyle="#3a5c3a";
+      ctx.beginPath();ctx.ellipse(x+w/2,y+h-9,18,6,0,0,7);ctx.fill();
+      ctx.beginPath();ctx.ellipse(x+w/2+14,y+h-12,6,4,0,0,7);ctx.fill();
+      const br=Math.sin(t*1.2)*1.5;
+      ctx.beginPath();ctx.ellipse(x+w/2-4,y+h-13-br,8,4,0,0,7);ctx.fill();
+      ctx.fillStyle="#caa53c";
+      ctx.beginPath();ctx.arc(x+10,y+h-5,3,Math.PI,0);ctx.fill();
+      ctx.beginPath();ctx.arc(x+w-12,y+h-5,4,Math.PI,0);ctx.fill();
+      break;}
+    case "throne":{
+      ctx.fillStyle="#7e1f1f";ctx.fillRect(x+4,y+h-6,w-8,4);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+4,y+h-7,w-8,1);
+      ctx.fillStyle="#caa53c";
+      ctx.fillRect(x+w/2-7,y+6,14,3);
+      ctx.fillRect(x+w/2-6,y+9,12,11);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+w/2-4,y+11,8,7);
+      for(const cxn of [x+10,x+w-10]){
+        ctx.fillStyle="#caa53c";ctx.fillRect(cxn-1,y+8,2,10);
+        const fl=.5+.5*Math.sin(t*8+cxn);
+        ctx.fillStyle=`rgba(255,170,60,${.6+.4*fl})`;ctx.fillRect(cxn-2,y+4,4,5);
+      }
+      break;}
+    case "skyhall":{
+      const fl=.5+.5*Math.sin(t*2);
+      ctx.fillStyle="#2a3450";ctx.fillRect(x+2,y+2,w-4,h-5);
+      for(let i=0;i<5;i++){
+        const wx=x+10+i*(w-26)/4;
+        ctx.fillStyle=`rgba(140,190,255,${.5+.4*fl})`;
+        ctx.beginPath();
+        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+9);
+        ctx.quadraticCurveTo(wx+4,y+3,wx+8,y+9);ctx.lineTo(wx+8,y+18);ctx.closePath();ctx.fill();
+      }
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-8,y+3,16,2);
+      ctx.fillStyle=`rgba(255,240,180,${.6+.4*fl})`;
+      ctx.beginPath();ctx.arc(x+w/2,y+8,3,0,7);ctx.fill();
+      break;}
+  }
+  if(!built(r.c-1,r.f)){ctx.fillStyle="#5b5347";ctx.fillRect(x,y,3,h);}
+  if(!built(r.c+r.w,r.f)){ctx.fillStyle="#5b5347";ctx.fillRect(x+w-3,y,3,h);}
+  if(!r.active&&r.type!=="gate"){
+    ctx.fillStyle="rgba(10,8,5,.55)";ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="#ffcf5c";ctx.font="bold 13px sans-serif";ctx.textAlign="center";
+    ctx.fillText(r.blockedSky?"🌱":"⚠",x+w/2,y+h/2+5);ctx.textAlign="left";
+  }
+}
+
+function drawBattlements(night,winter){
+  for(let f=F_MIN;f<=F_MAX;f++){
+    for(let c=0;c<COLS;c++){
+      if(built(c,f)&&!built(c,f+1)&&f>=0){
+        const x=c*TILE,y=floorTopY(f);
+        const r=cellRoom(c,f);
+        if(r&&ROOMS[r.type]&&ROOMS[r.type].sky)continue;  // 農場の上は空のまま
+        ctx.fillStyle=night?"#56504a":"#8a8276";
+        ctx.fillRect(x,y-6,TILE,6);
+        ctx.fillStyle="rgba(0,0,0,.25)";
+        ctx.fillRect(x+TILE*0.3,y-6,TILE*0.18,4);
+        ctx.fillRect(x+TILE*0.72,y-6,TILE*0.18,4);
+        if(winter){
+          ctx.fillStyle="rgba(255,255,255,.85)";
+          ctx.fillRect(x,y-8,TILE,3);
+        }
+      }
+    }
+  }
+}
+
+function drawBanner(night){
+  let best=null;
+  for(let f=F_MAX;f>=0;f--){
+    for(let c=0;c<COLS;c++)if(built(c,f)){if(!best||f>best[1])best=[c,f];}
+    if(best)break;
+  }
+  if(!best)return;
+  const [c,f]=best;
+  const x=c*TILE+TILE/2,y=floorTopY(f)-6;
+  ctx.strokeStyle="#caa53c";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-30);ctx.stroke();ctx.lineWidth=1;
+  const wave=Math.sin(perfNow*.004)*3;
+  ctx.fillStyle=RANKS[rankIdx].col;
+  ctx.beginPath();
+  ctx.moveTo(x,y-30);
+  ctx.quadraticCurveTo(x+11,y-28+wave,x+22,y-26+wave);
+  ctx.lineTo(x+15,y-21+wave*.6);
+  ctx.quadraticCurveTo(x+10,y-18,x,y-16);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle="rgba(0,0,0,.3)";ctx.stroke();
+}
+
+function drawAgent(a,night){
+  const y=floorTopY(a.f)+TILE-2;
+  const x=a.x;
+  const s=clamp(a.stress/100,0,1);
+  let col="#17120d";
+  if(s>0.66)col="#ff4030";
+  else if(s>0.33)col="#a83830";
+  ctx.fillStyle=col;
+  const walking=!!a.path;
+  const ph=Math.sin(perfNow*.02*(a.speed*.22)+a.jp);
+  const jig=a.wait>0?Math.sin(perfNow*.028+a.jp*3)*0.9:0;
+  ctx.fillRect(x-1.5+jig*.5,y-11,3,3);
+  ctx.fillRect(x-2+jig*.3,y-8,4,5);
+  if(walking){
+    ctx.fillRect(x-2+ph*1.7,y-3,1.6,3);
+    ctx.fillRect(x+0.4-ph*1.7,y-3,1.6,3);
+  }else{
+    ctx.fillRect(x-2+jig*.4,y-3,1.6,3);
+    ctx.fillRect(x+0.4+jig*.4,y-3,1.6,3);
+  }
+  if(a.kind==="knight"){
+    ctx.fillStyle="#c03028";ctx.fillRect(x-0.5,y-13,1.6,2);
+  }
+}
+
+// ---------- 入力 ----------
+let hoverCell=null;
+let dragging=false,dragMoved=false,lastPt=null,painting=false;
+function evPos(e){
+  const r=cv.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;
+  return [p.clientX-r.left,p.clientY-r.top];
+}
+function toCell(px,py){
+  const wx=px+cam.x,wy=py+cam.y;
+  const c=Math.floor(wx/TILE);
+  const f=F_MIN+Math.floor((WORLD_H-GROUND_DEPTH-wy)/TILE);
+  if(c<0||c>=COLS||f<F_MIN||f>F_MAX)return null;
+  return [c,f];
+}
+function pointerDown(e){
+  if(e.target!==cv)return;
+  const [px,py]=evPos(e);
+  lastPt=[px,py];dragMoved=false;
+  const cell=toCell(px,py);
+  if(tool==="select"){dragging=true;}
+  else if(cell){
+    if(tool==="demolish"){demolish(cell[0],cell[1]);painting=true;}
+    else{
+      const d=ROOMS[tool];
+      const c=clamp(cell[0]-Math.floor(d.w/2),0,COLS-d.w);
+      const ok=place(tool,c,cell[1]);
+      if(ok&&d.w===1)painting=true;
+    }
+  }
+  if(e.touches)e.preventDefault();
+}
+function pointerMove(e){
+  const [px,py]=evPos(e);
+  hoverCell=toCell(px,py);
+  if(hoverCell&&tool!=="select"&&tool!=="demolish"){
+    const d=ROOMS[tool];
+    if(d)hoverCell=[clamp(hoverCell[0]-Math.floor(d.w/2),0,COLS-d.w),hoverCell[1]];
+  }
+  if(dragging&&lastPt){
+    cam.x-=px-lastPt[0];cam.y-=py-lastPt[1];
+    if(Math.abs(px-lastPt[0])+Math.abs(py-lastPt[1])>3)dragMoved=true;
+    lastPt=[px,py];
+  } else if(painting&&hoverCell){
+    if(tool==="demolish")demolish(hoverCell[0],hoverCell[1]);
+    else{
+      const chk=canPlace(tool,hoverCell[0],hoverCell[1]);
+      if(chk.ok)place(tool,hoverCell[0],hoverCell[1]);
+    }
+    lastPt=[px,py];
+  }
+  if(e.touches)e.preventDefault();
+}
+function pointerUp(e){
+  if(tool==="select"&&!dragMoved&&lastPt){
+    const cell=toCell(lastPt[0],lastPt[1]);
+    if(cell){
+      const r=cellRoom(cell[0],cell[1]);
+      if(r&&r.type!=="gate")showInfo(r,lastPt);
+      else hideInfo();
+    } else hideInfo();
+  }
+  dragging=false;painting=false;lastPt=null;
+}
+cv.addEventListener("mousedown",pointerDown);
+window.addEventListener("mousemove",pointerMove);
+window.addEventListener("mouseup",pointerUp);
+cv.addEventListener("touchstart",pointerDown,{passive:false});
+cv.addEventListener("touchmove",pointerMove,{passive:false});
+cv.addEventListener("touchend",pointerUp);
+cv.addEventListener("wheel",e=>{cam.x+=e.deltaX;cam.y+=e.deltaY;e.preventDefault();},{passive:false});
+window.addEventListener("keydown",e=>{
+  const s=24;
+  if(e.key==="ArrowLeft")cam.x-=s;if(e.key==="ArrowRight")cam.x+=s;
+  if(e.key==="ArrowUp")cam.y-=s;if(e.key==="ArrowDown")cam.y+=s;
+});
+
+// 資材購入 (闇金融マルコは仕入れ -30%)
+function matPrice(base){return retEvo[2]==="usurer"?Math.round(base*0.7):base;}
+document.getElementById("buyWood").addEventListener("click",()=>{
+  const p=matPrice(100);
+  if(res.gold<p){toast("🚫 金貨不足（木材10="+p+"G）","bad");sndErr();return;}
+  res.gold-=p;res.wood=Math.min(999,res.wood+10);
+  toast("🪵 木材を10仕入れた（-"+p+"G）");sndCoin();updateHUD();
+});
+document.getElementById("buyStone").addEventListener("click",()=>{
+  const p=matPrice(180);
+  if(res.gold<p){toast("🚫 金貨不足（石材10="+p+"G）","bad");sndErr();return;}
+  res.gold-=p;res.stone=Math.min(999,res.stone+10);
+  toast("🪨 石材を10仕入れた（-"+p+"G）");sndCoin();updateHUD();
+});
+
+// ---------- UI ----------
+const toolbar=document.getElementById("toolbar");
+function updateToolbar(){
+  toolbar.innerHTML="";
+  for(const t of TOOL_ORDER){
+    const el=document.createElement("div");
+    el.className="tool"+(tool===t?" sel":"");
+    if(t==="select"){
+      el.innerHTML=`<span class="t-ico">👆</span><span class="t-name">調べる</span><span class="t-cost">移動/情報</span>`;
+    }else if(t==="demolish"){
+      el.innerHTML=`<span class="t-ico">🔨</span><span class="t-name">撤去</span><span class="t-cost">半額返金</span>`;
+    }else{
+      const d=ROOMS[t];
+      if(d.route&&route&&route!==d.route)continue;          // 選ばなかった道は非表示
+      const locked=rankIdx<d.rank||(d.route&&!route)||(d.mile&&!milestones[d.mile]);
+      if(locked)el.classList.add("locked");
+      let lockTxt="";
+      if(rankIdx<d.rank)lockTxt="🔒"+RANKS[d.rank].name;
+      else if(d.route&&!route)lockTxt="🔒道の選択後";
+      else if(d.mile&&!milestones[d.mile])lockTxt="🔒"+(route?loreName():"研究")+"80";
+      const name=t==="mlift"?(route==="fantasy"?"魔法昇降機":route==="real"?"水力昇降機":"特殊昇降機"):d.name;
+      el.innerHTML=`<span class="t-ico">${d.ico}</span><span class="t-name">${name}</span>
+        <span class="t-cost">${locked?lockTxt:costLabel(d)}</span>`;
+      if(locked){toolbar.appendChild(el);continue;}
+    }
+    el.addEventListener("click",()=>{
+      tool=t;updateToolbar();hideInfo();
+      cv.classList.toggle("building",t!=="select");
+      if(AC===null&&soundOn)beep(440,.04,"square",.02);
+    });
+    toolbar.appendChild(el);
+  }
+}
+
+const ip=document.getElementById("infopanel");
+let infoRoomId=null;
+function showInfo(r,pt){
+  infoRoomId=r.id;
+  renderInfo();
+  const x=clamp(pt[0]+14,8,window.innerWidth-252);
+  const y=clamp(pt[1]-40,60,window.innerHeight-240);
+  ip.style.left=x+"px";ip.style.top=y+"px";ip.style.display="block";
+}
+function renderInfo(){
+  const r=rooms[infoRoomId];
+  if(!r){hideInfo();return;}
+  const d=ROOMS[r.type];
+  const hcol=r.happy>=60?"#5e8a3c":(r.happy>=40?"#c98a27":"#b8412e");
+  let rows="";
+  if(d.pop)rows+=`<div class="row"><span>${r.type==="barracks"?"騎士":r.type==="noble"?"貴族":"住民"}</span><b>${r.occ} / ${d.pop}人</b></div>`;
+  if(d.rent)rows+=`<div class="row"><span>家賃収入</span><b>約${fmt(d.rent*r.occ)}G/日</b></div>`;
+  if(d.base)rows+=`<div class="row"><span>商い</span><b>人口に応じて増加</b></div>`;
+  if(d.food)rows+=`<div class="row"><span>食料</span><b>+${d.food}×季節/日</b></div>`;
+  if(d.wood)rows+=`<div class="row"><span>木材</span><b>+${d.wood}/日</b></div>`;
+  if(d.stone)rows+=`<div class="row"><span>石材</span><b>+${d.stone}/日</b></div>`;
+  if(d.lore)rows+=`<div class="row"><span>${loreName()}</span><b>+${d.lore}/日</b></div>`;
+  if(d.upkeep)rows+=`<div class="row"><span>維持費</span><b>-${d.upkeep}G/日</b></div>`;
+  if(d.security)rows+=`<div class="row"><span>治安</span><b>+${d.security}</b></div>`;
+  let warn="";
+  if(!r.active)warn=r.blockedSky?
+    `<div style="font-size:11px;color:#8e2b2b;margin-bottom:4px;">真上に建物があり、日が当たりません</div>`:
+    `<div style="font-size:11px;color:#8e2b2b;margin-bottom:4px;">大門から階段・昇降機でつながっていません</div>`;
+  ip.innerHTML=`
+    <h3>${d.ico} ${d.name}</h3>${warn}
+    <div class="row"><span>状態</span><b style="color:${r.active?"#5e8a3c":"#b8412e"}">${r.active?"稼働中":"⚠ 停止中"}</b></div>
+    ${r.type!=="gate"?`<div class="row"><span>幸福度</span><b>${r.happy}</b></div>
+    <div class="happybar"><div style="width:${r.happy}%;background:${hcol}"></div></div>`:""}
+    ${rows}
+    <div style="margin-top:6px;font-size:11px;color:#6e5b39;">${d.desc||""}</div>
+    <div class="ip-btns">
+      <button id="ipClose">閉じる</button>
+      <button class="danger" id="ipDem">撤去(+${fmt((d.cost.g||0)/2)}G)</button>
+    </div>`;
+  document.getElementById("ipClose").onclick=hideInfo;
+  document.getElementById("ipDem").onclick=()=>{demolish(r.c,r.f);};
+}
+function hideInfo(){ip.style.display="none";infoRoomId=null;}
+
+function toast(msg,cls=""){
+  const box=document.getElementById("toasts");
+  const t=document.createElement("div");
+  t.className="toast "+cls;t.textContent=msg;
+  box.appendChild(t);
+  document.getElementById("msgline").textContent=msg;
+  setTimeout(()=>{t.style.transition="opacity .5s";t.style.opacity="0";
+    setTimeout(()=>t.remove(),520);},4200);
+  while(box.children.length>3)box.firstChild.remove();
+}
+
+function updateHUD(){
+  document.getElementById("goldVal").textContent=fmt(res.gold);
+  const gd=document.getElementById("goldDelta");
+  gd.textContent=lastIncome?((lastIncome>=0?"+":"")+fmt(lastIncome)+"/日"):"";
+  gd.style.color=lastIncome>=0?"#9fd87a":"#f0a08a";
+  document.getElementById("foodVal").textContent=fmt(res.food);
+  document.getElementById("woodVal").textContent=fmt(res.wood);
+  document.getElementById("stoneVal").textContent=fmt(res.stone);
+  document.getElementById("loreVal").textContent=fmt(res.lore);
+  document.getElementById("popVal").textContent=fmt(population());
+  const s=SEASONS[seasonIdx()];
+  document.getElementById("seasonIco").textContent=s.ico;
+  document.getElementById("dayVal").textContent=yearNum()+"年 "+s.name+seasonDay()+"日";
+  document.getElementById("clockIco").textContent=isNight()?"🌙":(dayT<0.08?"🌅":(dayT>0.42&&dayT<0.52?"🌇":"☀️"));
+  document.getElementById("rankName").textContent=RANKS[rankIdx].name;
+  document.getElementById("rankCrest").textContent=RANKS[rankIdx].crest;
+  document.getElementById("rankBadge").style.background=RANKS[rankIdx].col;
+  if(route){
+    document.getElementById("loreStat").style.display="flex";
+    document.getElementById("loreIco").textContent=route==="fantasy"?"✨":"📖";
+  }
+}
+
+for(const [id,v] of [["spd0",0],["spd1",1],["spd3",3]]){
+  document.getElementById(id).addEventListener("click",()=>{
+    if(modalOpen)return;
+    speed=v;
+    for(const i of ["spd0","spd1","spd3"])document.getElementById(i).classList.remove("on");
+    document.getElementById(id).classList.add("on");
+  });
+}
+document.getElementById("sndBtn").addEventListener("click",e=>{
+  soundOn=!soundOn;e.target.textContent=soundOn?"🔔":"🔕";
+});
+
+// ---------- 巻物オーバーレイ ----------
+const overlay=document.getElementById("scrollOverlay");
+const scrollBody=document.getElementById("scrollBody");
+function showScroll(html){
+  scrollBody.innerHTML=html+`<div class="seal">印</div>`;
+  overlay.classList.add("show");
+}
+function closeScroll(){
+  overlay.classList.remove("show");
+  if(modalOpen){modalOpen=false;speed=prevSpeed;}
+}
+function pauseForModal(){
+  if(!modalOpen){prevSpeed=speed||1;modalOpen=true;speed=0;}
+}
+overlay.addEventListener("click",e=>{
+  if(e.target===overlay&&!modalOpen)overlay.classList.remove("show");
+});
+
+function showRankUp(){
+  sndFanfare();
+  pauseForModal();
+  const rk=RANKS[rankIdx];
+  const unlocks=Object.entries(ROOMS).filter(([k,d])=>d.rank===rankIdx&&(!d.route||d.route===route))
+    .map(([k,d])=>`${d.ico} ${d.name}`).join("　");
+  const ret=RETAINERS[rankIdx];
+  const isWin=rankIdx===RANKS.length-1;
+  showScroll(`
+    <h2>${isWin?"〜 天 上 の 戴 冠 〜":"勅 令"}</h2>
+    <div class="center">そなたの治める地は、その繁栄を認められ</div>
+    <div class="big-rank">${rk.crest} ${rk.name} ${rk.crest}</div>
+    <div class="center">へと昇格した。</div>
+    ${CHAPTERS[rankIdx]?`<div class="chapter"><b>📖 ${CHAPTERS[rankIdx].t}</b>${CHAPTERS[rankIdx].txt}</div>`:""}
+    ${ret?`<hr><div class="ev-speaker">${ret.img?`<img class="ret-portrait" src="${ret.img}" alt="${ret.ico}" onerror="this.remove()">`:`<span style="font-size:22px">${ret.ico}</span>`}
+      <span><b>${ret.name}</b>（${ret.role}）が仕官した！<br>${ret.line}<br>
+      <b style="color:#8e2b2b">効果：${ret.buff}</b></span></div>`:""}
+    ${unlocks?`<hr><div class="center"><small>新たに建設可能：</small><br>${unlocks}</div>`:""}
+    ${isWin?`<hr><div class="center">辺境の開拓地は、雲を貫き、星に手の届く<b>天空城郭</b>となった。<br>
+      地上より見上げる者は皆、こう囁くだろう——<br>「あれこそ、人の手が築いた天である」と。<br>
+      <small>（ゲームはこの後も自由に続けられます）</small></div>`:""}
+    <button onclick="window.__closeScroll()">承知した</button>
+  `);
+  if(isWin)won=true;
+}
+window.__closeScroll=closeScroll;
+
+// ---------- 家臣の進化 (公爵で解禁・二択・戻せない) ----------
+function showEvoChoice(i){
+  if(!hasRet(i)||retEvo[i]||rankIdx<EVO_RANK)return;
+  const rt=RETAINERS[i],ev=EVOS[i];
+  pauseForModal();
+  sndMystic();
+  showScroll(`
+    <h2>⤴ 家臣の進化</h2>
+    ${rt.img?`<img class="sage-portrait" style="border-color:#c9a227;box-shadow:0 0 18px rgba(220,180,60,.55)" src="${rt.img}" alt="" onerror="this.remove()">`:""}
+    <div class="center"><b>${rt.name}</b>（${rt.role}）は長き奉公の果てに、新たな高みへの扉の前に立っている。<br>歩ませる道を選べ。</div>
+    <div class="choice-btns">
+      <button id="evoA">${ev.a.ico} ${ev.a.name}<br><small>${ev.a.buff}</small></button>
+      <button id="evoB" class="alt">${ev.b.ico} ${ev.b.name}<br><small>${ev.b.buff}</small></button>
+    </div>
+    <div class="center" style="margin-top:8px"><small>※この選択は戻せない</small></div>
+  `);
+  document.getElementById("evoA").onclick=()=>doEvolve(i,"a");
+  document.getElementById("evoB").onclick=()=>doEvolve(i,"b");
+}
+function doEvolve(i,side){
+  const ev=EVOS[i][side];
+  retEvo[i]=ev.k;
+  closeScroll();
+  toast(`⤴ ${RETAINERS[i].name}は『${ev.name}』へと進化した！ ${ev.buff}`,"gold");
+  sndFanfare();
+  recomputeHappiness();updateHUD();saveGame();
+}
+window.__evo=(i)=>{closeScroll();setTimeout(()=>showEvoChoice(i),60);};
+
+function showUnderground(){
+  pauseForModal();
+  sndMystic();
+  showScroll(`
+    <h2>⛏ 地底の皇帝</h2>
+    <div class="center">地下10階——日の光の届かぬ最深部に、そなたは部屋を築いた。<br><br>
+    坑夫たちは畏怖を込めて囁く。<br>「我らの殿は、地の底さえ統べるおつもりだ」<br><br>
+    <b>実績解除：地底の皇帝</b></div>
+    <button onclick="window.__closeScroll()">さらに深く</button>
+  `);
+}
+
+document.getElementById("helpBtn").addEventListener("click",()=>{
+  if(modalOpen)return;
+  const next=RANKS[Math.min(rankIdx+1,RANKS.length-1)];
+  let retHtml="";
+  for(let i=1;i<=5;i++){
+    const rt=RETAINERS[i];
+    const ev=evoOf(i);
+    const canEvo=hasRet(i)&&!ev&&rankIdx>=EVO_RANK;
+    retHtml+=hasRet(i)
+      ?`${rt.img?`<img class="ret-mini" src="${rt.img}" alt="" onerror="this.remove()">`:""}${ev?ev.ico:rt.ico} <b>${ev?ev.name+"・":""}${rt.name}</b>（${rt.role}）— ${ev?ev.buff:rt.buff}${canEvo?` <button class="evo-btn" onclick="window.__evo(${i})">⤴ 進化</button>`:""}<br>`
+      :`❔ <span style="color:#9a8458">？？？ — ${RANKS[i].name}で仕官</span><br>`;
+  }
+  showScroll(`
+    <h2>城主の心得</h2>
+    <div style="font-size:13px">
+    <span class="help-k">一．</span>下のツールから施設を選び配置せよ。上の階は<b>下の階の真上</b>にのみ建つ。建設には金貨と<b>🪵木材・🪨石材</b>が要る（上部バーをタップで購入も可）。<br>
+    <span class="help-k">二．</span><b>🌀階段</b>か<b>🛗昇降機</b>で階をつなげ。届かぬ部屋は「⚠」で停止する。階段続きだと客は<b>黒→赤</b>に苛立つ。昇降機は苛立ちを癒す。<br>
+    <span class="help-k">三．</span><b>🌾農場</b>は屋根のない場所限定。<b>冬は実らない</b>ので秋までに蓄えよ。食料が尽きると領民は飢えて去る。<br>
+    <span class="help-k">四．</span>🪚工房は木材、⛏石切場（地下）は石材を産む。酒場・鍛冶屋の<b>隣</b>の住居は騒音で荒れる。⛪礼拝堂は周囲を癒す。<br>
+    <span class="help-k">五．</span>男爵に昇格すると<b>賢者の問い</b>が訪れ、『📜史実の道』か『🔮幻想の道』を選ぶ。知識／魔力を蓄えると発明・秘術が目覚める。<br>
+    <span class="help-k">六．</span>夜盗には<b>⚔兵舎</b>。昇格のたびに<b>家臣</b>が仕官し、城を強くする。<br>
+    <span class="help-k">七．</span>最終目標——人口900、41階以上の<b>🌟天空の間</b>を備えし<b>天空城郭</b>なり。地の底にも、何かが眠るという…
+    </div>
+    <hr>
+    <div class="retainer-list"><b>家臣団：</b><br>${retHtml}</div>
+    <hr>
+    <div class="center"><small>操作：ドラッグで視点移動／👆で部屋を調べる／通路・階段はドラッグで連続配置<br>
+    次の称号「${next.name}」まで：人口 ${next.pop}人${next.needsThrone?" ＋ 王座の間":""}${next.needsSky?" ＋ 天空の間":""}</small></div>
+    <div class="resetline"><button id="resetBtn">⚠ 最初からやり直す</button></div>
+    <button onclick="window.__closeScroll()">閉じる</button>
+  `);
+  document.getElementById("resetBtn").onclick=async()=>{
+    if(!confirm("セーブデータを消して最初から始めますか？"))return;
+    try{await window.storage.delete("castle_chronicle_v2");}catch(e){}
+    try{await window.storage.delete("castle_keeper_v1");}catch(e){}
+    location.reload();
+  };
+});
+
+// ---------- ストレージ層 ----------
+// window.storage はアーティファクト環境のAPI名残で未定義だった (= セーブが
+// 動いていなかった)。localStorage 実装 + AMJ アカウントへのクラウド同期で復活。
+// クラウドは同一オリジンの /api/arcade/save (未ログイン/失敗は黙って local のみ)。
+const SAVE_KEY="castle_chronicle_v2", GAME_KEY="castle-chronicle";
+let cloudTimer=null, cloudUsed=false;
+window.storage={
+  async get(k){const v=localStorage.getItem(k);return v==null?null:{value:v};},
+  async set(k,v){localStorage.setItem(k,v);if(k===SAVE_KEY)cloudPush(v);},
+  async delete(k){localStorage.removeItem(k);if(k===SAVE_KEY)cloudWipe();},
+};
+function cloudPush(v){
+  clearTimeout(cloudTimer);
+  cloudTimer=setTimeout(()=>{
+    try{
+      fetch("/api/arcade/save",{method:"PUT",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({game:GAME_KEY,data:JSON.parse(v)})}).catch(()=>{});
+    }catch(_){}
+  },4000); // 連続セーブをまとめて4秒後に1回だけ送る
+}
+function cloudWipe(){
+  try{fetch("/api/arcade/save?game="+GAME_KEY,{method:"DELETE"}).catch(()=>{});}catch(_){}
+}
+async function cloudLoad(){
+  try{
+    const r=await fetch("/api/arcade/save?game="+GAME_KEY);
+    if(!r.ok)return null;
+    const j=await r.json();
+    return j&&j.data?j.data:null;
+  }catch(_){return null;}
+}
+
+// ---------- セーブ / ロード ----------
+async function saveGame(){
+  try{
+    if(!window.storage)return;
+    const data={res,day,rankIdx,maxRankSeen,nextRoomId,throneBuilt,skyBuilt,won,
+      route,sageShown,milestones,undergroundEnd,lastEventDay,retEvo,
+      savedAt:Date.now(),
+      rooms:Object.values(rooms).map(r=>({id:r.id,type:r.type,f:r.f,c:r.c,w:r.w,occ:r.occ}))};
+    await window.storage.set("castle_chronicle_v2",JSON.stringify(data));
+  }catch(e){}
+}
+async function loadGame(){
+  try{
+    if(!window.storage)return false;
+    let raw=null;
+    try{const r2=await window.storage.get("castle_chronicle_v2");raw=r2&&r2.value;}catch(e){}
+    // クラウド (AMJアカウント) のセーブと比較し、新しい方を採用
+    try{
+      const cloud=await cloudLoad();
+      if(cloud){
+        const localAt=raw?(JSON.parse(raw).savedAt||0):0;
+        if((cloud.savedAt||1)>=localAt){
+          raw=JSON.stringify(cloud);
+          localStorage.setItem(SAVE_KEY,raw);
+          cloudUsed=true;
+        }
+      }
+    }catch(e){}
+    if(raw){
+      const d=JSON.parse(raw);
+      grid={};rooms={};
+      for(const rr of d.rooms){
+        if(!ROOMS[rr.type]&&rr.type!=="gate")continue;
+        rooms[rr.id]={...rr,happy:70,active:false};
+        for(let i=0;i<rr.w;i++)grid[key(rr.c+i,rr.f)]=rr.id;
+      }
+      res=Object.assign({gold:0,food:0,wood:0,stone:0,lore:0},d.res);
+      day=d.day;rankIdx=d.rankIdx||0;maxRankSeen=d.maxRankSeen||rankIdx;
+      nextRoomId=d.nextRoomId||1000;throneBuilt=!!d.throneBuilt;skyBuilt=!!d.skyBuilt;
+      won=!!d.won;route=d.route||null;sageShown=!!d.sageShown;
+      milestones=d.milestones||{};undergroundEnd=!!d.undergroundEnd;
+      lastEventDay=d.lastEventDay||0;retEvo=d.retEvo||{};
+      return true;
+    }
+    // 旧版(キャッスル・キーパー)からの引き継ぎ
+    try{
+      const r1=await window.storage.get("castle_keeper_v1");
+      if(r1&&r1.value){
+        const d=JSON.parse(r1.value);
+        grid={};rooms={};
+        for(const rr of d.rooms){
+          if(!ROOMS[rr.type]&&rr.type!=="gate")continue;
+          rooms[rr.id]={...rr,happy:70,active:false};
+          for(let i=0;i<rr.w;i++)grid[key(rr.c+i,rr.f)]=rr.id;
+        }
+        res.gold=d.gold||5000;day=d.day||1;rankIdx=Math.min(d.rankIdx||0,4);
+        maxRankSeen=rankIdx;nextRoomId=d.nextRoomId||1000;throneBuilt=!!d.throneBuilt;
+        res.food=120;res.wood=80;res.stone=40;
+        toast("📜 旧き記録を引き継いだ。年代記は新たな章へ");
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }catch(e){return false;}
+}
+
+// ---------- メインループ ----------
+let perfNow=0,lastT=0,hudTimer=0,happyTimer=0;
+function loop(ts){
+  perfNow=ts;
+  const dt=Math.min(.05,(ts-lastT)/1000);lastT=ts;
+  const gdt=dt*speed;
+  if(gdt>0){
+    dayT+=gdt/DAY_LEN;
+    if(dayT>=1){dayT-=1;day++;dailyTick();updateHUD();}
+    agentTick(dt);
+    happyTimer+=gdt;
+    if(happyTimer>4){happyTimer=0;recomputeHappiness();if(infoRoomId!==null)renderInfo();}
+    // 竜の巣があればたまに夜間飛翔
+    if(!dragon&&route==="fantasy"&&isNight()&&countType("roost")>0&&Math.random()<gdt*0.02)startDragon();
+  }
+  hudTimer+=dt;
+  if(hudTimer>.5){hudTimer=0;updateHUD();}
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---------- 起動 ----------
+(async function init(){
+  resize();
+  const loaded=await loadGame();
+  if(!loaded){
+    placeGate();
+    setTimeout(()=>{
+      pauseForModal();
+      showScroll(`
+        <h2>領地拝領の証</h2>
+        <div class="center">辺境の丘に、一つの<b>大門</b>が築かれた。<br>
+        そなたはこの地の城主——年代記の最初の頁である。</div>
+        <hr>
+        <div style="font-size:13px"><span class="help-k">まずは——</span><br>
+        ① 大門の左右に <b>🧺市場</b>・<b>🛏居住区</b>・<b>🌾農場</b>を建てよ（金と人と食の基本）。<br>
+        ② <b>🌀らせん階段</b>と<b>🧱通路</b>で2階へ。城は上へ上へと育つ。<br>
+        ③ 人口30で「砦」へ昇格。家臣<b>ローランド卿</b>が仕官するだろう。<br>
+        ④ <b>冬</b>が来る前に食料を蓄えよ。畑は雪の下では実らぬ。</div>
+        <hr>
+        <div class="center"><small>詳しい心得は右上の 📜 でいつでも読める</small></div>
+        <button onclick="window.__closeScroll()">築城を始める</button>
+      `);
+    },400);
+  }else{
+    if(!rooms[0])placeGate();
+    toast(cloudUsed
+      ?"☁️ クラウドの記録を読み込んだ。"+yearNum()+"年目の朝——城は何処でもそなたと共に"
+      :"📜 "+yearNum()+"年目の朝。城は今日も健在だ");
+  }
+  recomputeReach();recomputeHappiness();
+  updateToolbar();updateHUD();
+  requestAnimationFrame(ts=>{lastT=ts;loop(ts);});
+})();
+</script>
+</body>
+</html>
