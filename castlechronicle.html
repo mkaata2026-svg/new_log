@@ -113,6 +113,13 @@
   .scroll .ev-speaker{display:flex;align-items:center;gap:8px;font-size:12px;color:#6e5b39;margin-bottom:6px;}
   .scroll .retainer-list{font-size:12px;line-height:1.9;}
 
+  /* ===== ズーム操作 ===== */
+  #zoomctl{position:fixed;right:10px;bottom:118px;z-index:21;display:flex;flex-direction:column;gap:7px;}
+  #zoomctl button{width:42px;height:42px;border-radius:50%;border:2px solid #9a8458;
+    background:rgba(43,29,15,.86);color:#f0e4c4;font-size:22px;font-weight:bold;cursor:pointer;
+    box-shadow:0 2px 7px rgba(0,0,0,.55);line-height:1;display:flex;align-items:center;justify-content:center;}
+  #zoomctl button:active{background:#6b5234;transform:translateY(1px);}
+
   /* トースト */
   #toasts{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:30;display:flex;
     flex-direction:column;gap:6px;align-items:center;pointer-events:none;max-width:94vw;}
@@ -173,6 +180,7 @@
 <div id="toolwrap"><div id="catbar"></div><div id="toolbar"></div></div>
 <div id="infopanel"></div>
 <div id="toasts"></div>
+<div id="zoomctl"><button id="zoomIn" title="拡大">＋</button><button id="zoomOut" title="縮小">－</button></div>
 <div id="scrollOverlay"><div class="scroll" id="scrollBody"></div></div>
 
 <script>
@@ -516,6 +524,7 @@ const SCENARIO_CH={
 };
 
 let cam = {x: GATE_C*TILE - 300, y: WORLD_H - 620};
+let zoom = 1.5;                   // 表示倍率 (1.0〜3.6)。既定はやや寄りで生活感が見える
 
 // ---------- ユーティリティ ----------
 const key = (c,f)=>c+","+f;
@@ -1725,7 +1734,10 @@ function agentTick(dt){
     const a=agents[i];
     if(a.wait>0){a.wait-=dt;
       const rr=rooms[a.target];
-      if(rr&&speed>0){
+      // 座る・祈る・飲む系の部屋では落ち着いて滞在（横滑りしない）
+      const settled=rr&&["tavern","chapel","monastery","cathedral","quarters",
+        "bighouse","noble","royalsuite","university","magetower"].includes(rr.type);
+      if(rr&&speed>0&&!settled){
         const minX=rr.c*TILE+3,maxX=(rr.c+rr.w)*TILE-3;
         a.x+=a.wdir*a.speed*0.4*dt*speed;
         if(a.x<minX){a.x=minX;a.wdir=1;}else if(a.x>maxX){a.x=maxX;a.wdir=-1;}
@@ -1813,10 +1825,11 @@ function skyColors(t){
 const isNight=()=>dayT>0.52||dayT<0.02;
 
 function draw(){
-  const W=cv.width/DPR,H=cv.height/DPR;
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  cam.x=clamp(cam.x,-160,WORLD_W-W+160);
-  cam.y=clamp(cam.y,0,WORLD_H-H+40);
+  // W,H は「ワールド座標で見えている範囲」(画面px ÷ zoom)。以降の描画は全てワールド座標
+  const W=cv.width/DPR/zoom,H=cv.height/DPR/zoom;
+  ctx.setTransform(DPR*zoom,0,0,DPR*zoom,0,0);
+  cam.x=clamp(cam.x,-160,Math.max(-160,WORLD_W-W+160));
+  cam.y=clamp(cam.y,0,Math.max(0,WORLD_H-H+40));
   ctx.save();ctx.translate(-cam.x,-cam.y);
   const sIdx=seasonIdx(), winter=sIdx===3;
 
@@ -1950,6 +1963,93 @@ function draw(){
   ctx.restore();
 }
 
+// ---- 小さな人物（多彩なポーズ）。footY=足元のy、px=中心x ----
+const SKINS=["#caa070","#b88a5a","#e0b888","#9a6a44"];
+function figure(px,footY,o){
+  o=o||{};
+  const col=o.col||"#241a10";
+  const skin=o.skin||SKINS[(o.seed||0)%SKINS.length];
+  const tm=perfNow;
+  ctx.fillStyle=col;
+  if(o.pose==="sleep"){                              // 横たわって就寝
+    ctx.fillStyle=o.blanket||"#8a5a3c";
+    ctx.fillRect(px-4,footY-3,9,3);                  // 毛布
+    ctx.fillStyle=skin;ctx.fillRect(px-6,footY-3,2.5,2.5); // 頭
+    return;
+  }
+  if(o.pose==="sit"||o.pose==="drink"){              // 腰掛ける／一杯やる
+    ctx.fillStyle=col;
+    ctx.fillRect(px-2,footY-6,4,4);                  // 胴
+    ctx.fillStyle=skin;ctx.fillRect(px-1.5,footY-9,3,3); // 頭
+    ctx.fillStyle=col;ctx.fillRect(px-2.5,footY-2,5,1.6); // 前に出した脚
+    if(o.pose==="drink"){
+      const sip=Math.sin(tm*.004+(o.seed||0))>0.6?-1:0;
+      ctx.fillStyle="#c9a227";ctx.fillRect(px+2,footY-7+sip,2.5,3); // ジョッキ
+    }
+    return;
+  }
+  if(o.pose==="kneel"||o.pose==="pray"){             // 跪いて祈る
+    const sway=Math.sin(tm*.002+(o.seed||0))*0.6;
+    ctx.fillStyle=col;
+    ctx.fillRect(px-2+sway,footY-7,4,4);             // 胴(前傾)
+    ctx.fillStyle=skin;ctx.fillRect(px-1.5+sway*1.4,footY-10,3,3); // 頭
+    ctx.fillStyle=col;ctx.fillRect(px-3,footY-2,6,1.6); // 膝
+    return;
+  }
+  // 立つ／歩く／働く／読む
+  const head=footY-11;
+  ctx.fillStyle=skin;ctx.fillRect(px-1.5,head,3,3);  // 頭
+  if(o.hat){ctx.fillStyle=o.hat;ctx.fillRect(px-2,head-1.5,4,2);}
+  ctx.fillStyle=col;ctx.fillRect(px-2,head+3,4,5);   // 胴
+  if(o.pose==="walk"){
+    const ph=o.ph||0;
+    ctx.fillRect(px-2+ph,footY-3,1.6,3);
+    ctx.fillRect(px+0.4-ph,footY-3,1.6,3);
+  }else{
+    ctx.fillRect(px-2,footY-3,1.6,3);
+    ctx.fillRect(px+0.4,footY-3,1.6,3);
+  }
+  if(o.pose==="work"){
+    const sw=Math.sin(tm*.012+(o.seed||0))*3;
+    ctx.fillStyle="#7a5430";ctx.fillRect(px+2,head+1+sw,1.6,5);    // 振り上げる道具
+  }else if(o.pose==="read"){
+    ctx.fillStyle="#e6dcc2";ctx.fillRect(px+1.5,head+4,3.5,2.5);   // 書物
+  }else if(o.pose==="shop"){
+    ctx.fillStyle="#8a6a3a";ctx.fillRect(px+2,head+4,2,2);         // 買い物籠
+  }
+}
+// 住居：ベッドを occ に合わせて並べ、夜は就寝・昼は団欒
+function drawDwelling(r,x,y,w,h,night,o){
+  const beds=o.beds, occ=clamp(r.occ,0,beds);
+  const lit=night&&r.occ>0;
+  // 上辺の窓（各タイル）
+  for(let i=0;i<r.w;i++){
+    const wx=x+i*TILE+TILE-9;
+    ctx.fillStyle=lit?"rgba(255,200,110,.9)":"#26303e";
+    ctx.fillRect(wx,y+3,7,6);
+    ctx.strokeStyle="#2e2113";ctx.lineWidth=1;ctx.strokeRect(wx+.5,y+3.5,6,5);
+    ctx.beginPath();ctx.moveTo(wx+3.5,y+3);ctx.lineTo(wx+3.5,y+9);ctx.stroke();
+  }
+  // 床板
+  ctx.fillStyle=o.posh?"#7a5e3a":"#5d4a32";ctx.fillRect(x,y+h-4,w,2);
+  for(let b=0;b<beds;b++){
+    const bx=x+w*(b+0.5)/beds, by=y+h-5;
+    // ベッド
+    ctx.fillStyle=o.posh?"#6b3f86":"#6e4a2e";ctx.fillRect(bx-6,by-2,12,4);
+    ctx.fillStyle="#d8d0c0";ctx.fillRect(bx-6,by-3,3,3);             // 枕
+    ctx.fillStyle=o.posh?"#caa0e0":"#b08a64";ctx.fillRect(bx-3,by-2,9,2); // 掛布
+    if(b<occ){
+      if(night){
+        figure(bx-1,by+2,{pose:"sleep",blanket:o.posh?"#9a6ac0":"#8a5a3c",seed:r.id+b});
+        if(b===0){ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="italic 7px serif";
+          ctx.fillText("z",bx+5,by-4);}
+      }else{
+        figure(bx,by,{pose:(b+r.c)%3===0?"stand":"sit",col:o.posh?"#3a2a4a":"#241a10",
+          hat:o.posh?"#caa53c":null,seed:r.id+b});
+      }
+    }
+  }
+}
 function drawRoom(r,night,sIdx){
   const x=r.c*TILE,y=floorTopY(r.f),w=r.w*TILE,h=TILE;
   let base=r.f<0?"#4f463c":"#7b746a";
@@ -2021,38 +2121,41 @@ function drawRoom(r,night,sIdx){
       if(r.blockedSky){ctx.fillStyle="rgba(0,0,0,.4)";ctx.fillRect(x,y,w,h);}
       break;}
     case "quarters":{
-      const lit=night&&r.occ>0;
-      for(let i=0;i<r.w;i++){
-        ctx.fillStyle=lit?warm(.85):"#2a3140";
-        ctx.fillRect(x+i*TILE+8,y+5,10,11);
-        ctx.strokeStyle="#2e2113";ctx.strokeRect(x+i*TILE+8.5,y+5.5,9,10);
-        ctx.beginPath();ctx.moveTo(x+i*TILE+13,y+5);ctx.lineTo(x+i*TILE+13,y+16);ctx.stroke();
-      }
-      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+4,y+h-8,12,5);
-      ctx.fillStyle="#b8b0a0";ctx.fillRect(x+4,y+h-9,5,3);
+      drawDwelling(r,x,y,w,h,night,{beds:3});
       break;}
     case "bighouse":{
-      const lit=night&&r.occ>0;
-      for(let i=0;i<r.w*2;i++){
-        ctx.fillStyle=(lit&&(i%3!==2))?warm(.8):"#2a3140";
-        ctx.fillRect(x+4+i*TILE/2,y+5,8,8);
-        ctx.strokeStyle="#2e2113";ctx.strokeRect(x+4.5+i*TILE/2,y+5.5,7,7);
-      }
-      ctx.fillStyle="#5d4a32";
-      for(let i=0;i<r.w;i++)ctx.fillRect(x+6+i*TILE,y+h-7,14,4);
+      drawDwelling(r,x,y,w,h,night,{beds:r.w*2});
       break;}
     case "noble":{
-      ctx.fillStyle="#9a937f";ctx.fillRect(x,y,w,4);
+      ctx.fillStyle="#9a937f";ctx.fillRect(x,y,w,4);     // 漆喰の帯
+      // アーチ窓
       for(let i=0;i<r.w;i++){
-        const wx=x+i*TILE+7;
+        const wx=x+i*TILE+4;
         ctx.fillStyle=night?warm(.9):"#324a66";
         ctx.beginPath();
-        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+9);
-        ctx.quadraticCurveTo(wx+5,y+3,wx+10,y+9);ctx.lineTo(wx+10,y+18);ctx.closePath();ctx.fill();
+        ctx.moveTo(wx,y+15);ctx.lineTo(wx,y+9);
+        ctx.quadraticCurveTo(wx+4,y+4,wx+8,y+9);ctx.lineTo(wx+8,y+15);ctx.closePath();ctx.fill();
         ctx.strokeStyle="#caa53c";ctx.stroke();
       }
-      ctx.fillStyle="#7a3fa0";ctx.fillRect(x+w/2-3,y+4,6,9);
-      ctx.strokeStyle="#caa53c";ctx.strokeRect(x+w/2-3.5,y+3.5,7,10);
+      drawDwelling(r,x,y,w,h,night,{beds:r.w,posh:true});
+      // 暖炉の灯
+      const fg=.5+.5*Math.sin(t*5+r.c);
+      ctx.fillStyle=`rgba(255,150,50,${.4+.4*fg})`;ctx.fillRect(x+w-7,y+h-8,4,5);
+      break;}
+    case "royalsuite":{
+      ctx.fillStyle="#9a8050";ctx.fillRect(x,y,w,4);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x,y+1,w,1);   // 金の帯
+      for(let i=0;i<r.w;i++){
+        const wx=x+i*TILE+5;
+        ctx.fillStyle=night?warm(.95):"#3a5a86";
+        ctx.beginPath();ctx.moveTo(wx,y+15);ctx.lineTo(wx,y+8);
+        ctx.quadraticCurveTo(wx+4,y+2,wx+8,y+8);ctx.lineTo(wx+8,y+15);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#caa53c";ctx.stroke();
+      }
+      drawDwelling(r,x,y,w,h,night,{beds:Math.max(2,r.w-1),posh:true});
+      // 天蓋（赤い布）
+      ctx.fillStyle="#7e1f1f";ctx.fillRect(x+w/2-12,y+h-12,24,3);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-12,y+h-12,24,1);
       break;}
     case "market":{
       for(let i=0;i<r.w*2;i++){
@@ -2062,17 +2165,24 @@ function drawRoom(r,night,sIdx){
         ctx.lineTo(x+(i+1)*TILE/2-3,y+7);ctx.lineTo(x+i*TILE/2+3,y+7);
         ctx.closePath();ctx.fill();
       }
-      ctx.fillStyle="#8a6a3a";ctx.fillRect(x+5,y+h-9,9,6);
-      ctx.fillRect(x+w-16,y+h-11,10,8);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-14,y+h-13,3,3);
+      // 屋台と並ぶ品物
+      ctx.fillStyle="#8a6a3a";ctx.fillRect(x+5,y+h-9,10,6);
       ctx.fillStyle="#7c9456";ctx.fillRect(x+7,y+h-12,3,3);
       ctx.fillStyle="#b8412e";ctx.fillRect(x+10,y+h-12,3,3);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+13,y+h-12,3,3);
+      // 売り子と買い物客
+      figure(x+9,y+h-3,{pose:"stand",col:"#3a2a16",hat:"#8a6a3a",seed:r.id});       // 売り子
+      const shoppers=Math.min(3,Math.max(1,Math.round((r.happy/100)*3)));
+      for(let i=0;i<shoppers;i++)
+        figure(x+w-10-i*8,y+h-3,{pose:"shop",col:"#241a10",seed:r.id+i+1});
       break;}
     case "workshop":{
       ctx.fillStyle="#7a5430";
-      ctx.fillRect(x+5,y+h-8,16,4);ctx.fillRect(x+8,y+h-12,16,4);
-      ctx.fillStyle="#9aa6b2";
-      ctx.beginPath();ctx.moveTo(x+w-16,y+h-4);ctx.lineTo(x+w-10,y+8);ctx.lineTo(x+w-8,y+h-4);ctx.closePath();ctx.fill();
+      ctx.fillRect(x+5,y+h-8,14,4);                       // 作業台
+      ctx.fillStyle="#9aa6b2";                            // 木材を立てかけ
+      ctx.beginPath();ctx.moveTo(x+w-10,y+h-4);ctx.lineTo(x+w-6,y+7);ctx.lineTo(x+w-4,y+h-4);ctx.closePath();ctx.fill();
+      ctx.fillStyle="#6e4a2e";for(let i=0;i<3;i++)ctx.fillRect(x+w-20+i*3,y+6,2,h-10);
+      figure(x+10,y+h-3,{pose:"work",col:"#2a1c0e",hat:"#7a5430",seed:r.id});       // 職人
       break;}
     case "quarry":{
       ctx.fillStyle="#5e564a";
@@ -2084,21 +2194,36 @@ function drawRoom(r,night,sIdx){
     case "blacksmith":{
       const glow=.5+.5*Math.sin(t*6+r.c);
       ctx.fillStyle=`rgba(255,${90+glow*60},30,${.55+.3*glow})`;
-      ctx.fillRect(x+5,y+8,10,12);
-      ctx.fillStyle="#33291c";ctx.fillRect(x+4,y+6,12,3);
-      ctx.fillStyle="#454a50";ctx.fillRect(x+w-18,y+h-9,10,3);
-      ctx.fillRect(x+w-15,y+h-6,4,4);
+      ctx.fillRect(x+5,y+9,9,11);                         // 炉の火
+      ctx.fillStyle="#33291c";ctx.fillRect(x+4,y+7,11,3);
+      // 鉄床と槌を振る鍛冶師
+      ctx.fillStyle="#454a50";ctx.fillRect(x+w-16,y+h-7,9,3);
+      figure(x+w-11,y+h-3,{pose:"work",col:"#241810",hat:"#5a4a30",seed:r.id});
+      // 火花
+      if(glow>0.7){ctx.fillStyle="#ffd060";for(let k=0;k<3;k++)
+        ctx.fillRect(x+w-16+rnd(-2,8),y+h-9+rnd(-2,2),1,1);}
       break;}
     case "tavern":{
       const lit=night;
+      // 窓と看板
       ctx.fillStyle=lit?warm(.9):"#3a3220";
-      ctx.fillRect(x+7,y+5,9,10);ctx.fillRect(x+w-17,y+5,9,10);
-      ctx.strokeStyle="#2e2113";ctx.strokeRect(x+7.5,y+5.5,8,9);ctx.strokeRect(x+w-16.5,y+5.5,8,9);
-      ctx.fillStyle="#7a5430";ctx.fillRect(x+w/2-5,y+h-12,10,9);
-      ctx.strokeStyle="#3e2a16";ctx.strokeRect(x+w/2-5.5,y+h-12.5,11,10);
-      ctx.beginPath();ctx.moveTo(x+w/2-5,y+h-8);ctx.lineTo(x+w/2+5,y+h-8);ctx.stroke();
+      ctx.fillRect(x+w-14,y+4,8,8);
+      ctx.strokeStyle="#2e2113";ctx.strokeRect(x+w-13.5,y+4.5,7,7);
       ctx.fillStyle="#caa53c";ctx.fillRect(x+2,y+3,2,7);
-      ctx.fillStyle="#8e2b2b";ctx.fillRect(x,y+9,7,5);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x,y+9,7,5);    // 吊り看板
+      // 樽
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-9,y+h-9,6,6);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-7,6,1);
+      // 長卓と酔客（occ/workers に応じて賑わう）
+      const tableY=y+h-6;
+      ctx.fillStyle="#5a3c22";ctx.fillRect(x+5,tableY,w-22,3);  // 卓
+      const seats=Math.min(4, r.w);
+      const patrons=lit?seats:Math.max(1,Math.round(seats*0.5));
+      for(let i=0;i<patrons;i++){
+        const px=x+9+i*((w-26)/Math.max(1,seats-1));
+        ctx.fillStyle="#caa227";ctx.fillRect(px-1,tableY-2,2,2);   // 卓上のジョッキ
+        figure(px,tableY+3,{pose:"drink",col:"#241a10",seed:r.id+i});
+      }
       break;}
     case "barracks":{
       const shieldCols=["#8e2b2b","#3f5e8c"];
@@ -2112,18 +2237,33 @@ function drawRoom(r,night,sIdx){
       ctx.strokeStyle="#9aa6b2";ctx.beginPath();
       ctx.moveTo(x+w/2-3,y+h-2);ctx.lineTo(x+w/2+2,y+4);
       ctx.moveTo(x+w/2+4,y+h-2);ctx.lineTo(x+w/2-1,y+4);ctx.stroke();
+      // 駐屯する騎士（occに応じて）
+      const kn=clamp(r.occ,0,Math.min(3,r.w));
+      for(let i=0;i<kn;i++){
+        const px=x+9+i*((w-18)/Math.max(1,kn));
+        figure(px,y+h-3,{pose:"stand",col:"#2a2a30",hat:"#8a8a92",seed:r.id+i});
+        ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1;            // 槍
+        ctx.beginPath();ctx.moveTo(px+3,y+h-2);ctx.lineTo(px+3,y+5);ctx.stroke();
+      }
       break;}
     case "chapel":{
+      // ステンドグラス
       const cols=["#b8412e","#3f5e8c","#caa53c"];
       for(let i=0;i<3;i++){
         const wx=x+w/2-21+i*15;
         ctx.fillStyle=night?cols[i]:"#2a3140";
         ctx.beginPath();
-        ctx.moveTo(wx,y+18);ctx.lineTo(wx,y+10);
-        ctx.quadraticCurveTo(wx+4,y+3,wx+8,y+10);ctx.lineTo(wx+8,y+18);ctx.closePath();
+        ctx.moveTo(wx,y+13);ctx.lineTo(wx,y+7);
+        ctx.quadraticCurveTo(wx+4,y+2,wx+8,y+7);ctx.lineTo(wx+8,y+13);ctx.closePath();
         ctx.globalAlpha=night?.95:.8;ctx.fill();ctx.globalAlpha=1;
         ctx.strokeStyle="#2e2113";ctx.stroke();
       }
+      // 祭壇と跪く信徒
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-12,y+h-8,7,5);   // 祭壇
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-12,1.6,5); // 十字
+      ctx.fillRect(x+w-10.5,y+h-11,4,1.6);
+      for(let i=0;i<Math.min(3,r.w);i++)
+        figure(x+8+i*9,y+h-3,{pose:"pray",col:"#2a2030",seed:r.id+i});
       break;}
     case "treasury":{
       ctx.fillStyle="#caa53c";
@@ -2144,11 +2284,13 @@ function drawRoom(r,night,sIdx){
       ctx.beginPath();ctx.moveTo(x+5,y+8);ctx.lineTo(x+w-5,y+8);ctx.stroke();
       break;}
     case "university":{
-      ctx.fillStyle="#9a937f";
-      for(let i=0;i<r.w+1;i++)ctx.fillRect(x+3+i*(w-8)/r.w,y+5,4,h-8);
+      // 列柱とペディメント
       ctx.fillStyle="#9a937f";ctx.fillRect(x,y+2,w,4);
-      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+w/2-7,y+h-12,6,8);
-      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+w/2,y+h-12,6,8);
+      for(let i=0;i<r.w+1;i++)ctx.fillRect(x+3+i*(w-8)/r.w,y+7,3,h-11);
+      // 書見台で読む学者
+      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+6,y+h-9,5,6);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x+12,y+h-9,5,6);   // 書架
+      figure(x+w-12,y+h-3,{pose:"read",col:"#23304a",hat:"#2a3a5a",seed:r.id});
       break;}
     case "bank":{
       ctx.fillStyle="#9a937f";
@@ -2282,27 +2424,33 @@ function drawBanner(night){
   ctx.strokeStyle="rgba(0,0,0,.3)";ctx.stroke();
 }
 
+// 待機中の客が今いる部屋から「振る舞い」を決める
+function agentPose(a){
+  if(a.path)return "walk";
+  const r=cellRoom(Math.floor(a.x/TILE),a.f);
+  if(!r)return "stand";
+  switch(r.type){
+    case "tavern":return "drink";
+    case "chapel":case "monastery":case "cathedral":return "pray";
+    case "quarters":case "bighouse":case "noble":case "royalsuite":return "sit";
+    case "university":case "magetower":return "read";
+    case "market":return "shop";
+    default:return "stand";
+  }
+}
 function drawAgent(a,night){
   const y=floorTopY(a.f)+TILE-2;
   const x=a.x;
   const s=clamp(a.stress/100,0,1);
+  // ストレスで肌着の色が黒→赤に（タワー流の苛立ち表現）
   let col="#17120d";
-  if(s>0.66)col="#ff4030";
-  else if(s>0.33)col="#a83830";
-  ctx.fillStyle=col;
-  const walking=!!a.path;
-  const ph=Math.sin(perfNow*.02*(a.speed*.22)+a.jp);
-  const jig=a.wait>0?Math.sin(perfNow*.028+a.jp*3)*0.9:0;
-  ctx.fillRect(x-1.5+jig*.5,y-11,3,3);
-  ctx.fillRect(x-2+jig*.3,y-8,4,5);
-  if(walking){
-    ctx.fillRect(x-2+ph*1.7,y-3,1.6,3);
-    ctx.fillRect(x+0.4-ph*1.7,y-3,1.6,3);
-  }else{
-    ctx.fillRect(x-2+jig*.4,y-3,1.6,3);
-    ctx.fillRect(x+0.4+jig*.4,y-3,1.6,3);
-  }
-  if(a.kind==="knight"){
+  if(s>0.66)col="#d83828";
+  else if(s>0.33)col="#7a3026";
+  const pose=agentPose(a);
+  const ph=Math.sin(perfNow*.02*(a.speed*.22)+a.jp)*1.7;
+  figure(x,y,{pose,col,ph,seed:a.jp|0,
+    hat:a.kind==="knight"?"#9aa6b2":null});
+  if(a.kind==="knight"){                     // 兜の前立て
     ctx.fillStyle="#c03028";ctx.fillRect(x-0.5,y-13,1.6,2);
   }
 }
@@ -2315,8 +2463,17 @@ function evPos(e){
   const p=e.touches?e.touches[0]:e;
   return [p.clientX-r.left,p.clientY-r.top];
 }
+// 画面上の点 (px,py) を中心に倍率を nz へ。指/カーソル下のワールド点を固定したまま拡大縮小
+function setZoom(nz,sx,sy){
+  const cw=cv.clientWidth,ch=cv.clientHeight;
+  if(sx==null){sx=cw/2;sy=ch/2;}
+  nz=clamp(nz,1,3.6);
+  const wx=cam.x+sx/zoom, wy=cam.y+sy/zoom;
+  zoom=nz;
+  cam.x=wx-sx/zoom; cam.y=wy-sy/zoom;
+}
 function toCell(px,py){
-  const wx=px+cam.x,wy=py+cam.y;
+  const wx=px/zoom+cam.x,wy=py/zoom+cam.y;
   const c=Math.floor(wx/TILE);
   const f=F_MIN+Math.floor((WORLD_H-GROUND_DEPTH-wy)/TILE);
   if(c<0||c>=COLS||f<F_MIN||f>F_MAX)return null;
@@ -2339,7 +2496,18 @@ function pointerDown(e){
   }
   if(e.touches)e.preventDefault();
 }
+let pinchD=0;            // 二本指の前回距離
 function pointerMove(e){
+  // 二本指ピンチ → ズーム (指の中点を固定)
+  if(e.touches&&e.touches.length>=2){
+    const r=cv.getBoundingClientRect();
+    const a=e.touches[0],b=e.touches[1];
+    const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    const mx=(a.clientX+b.clientX)/2-r.left, my=(a.clientY+b.clientY)/2-r.top;
+    if(pinchD>0)setZoom(zoom*(d/pinchD),mx,my);
+    pinchD=d;dragging=false;painting=false;
+    e.preventDefault();return;
+  }
   const [px,py]=evPos(e);
   hoverCell=toCell(px,py);
   if(hoverCell&&tool!=="select"&&tool!=="demolish"){
@@ -2347,7 +2515,7 @@ function pointerMove(e){
     if(d)hoverCell=[clamp(hoverCell[0]-Math.floor(d.w/2),0,COLS-d.w),hoverCell[1]];
   }
   if(dragging&&lastPt){
-    cam.x-=px-lastPt[0];cam.y-=py-lastPt[1];
+    cam.x-=(px-lastPt[0])/zoom;cam.y-=(py-lastPt[1])/zoom;
     if(Math.abs(px-lastPt[0])+Math.abs(py-lastPt[1])>3)dragMoved=true;
     lastPt=[px,py];
   } else if(painting&&hoverCell){
@@ -2361,6 +2529,8 @@ function pointerMove(e){
   if(e.touches)e.preventDefault();
 }
 function pointerUp(e){
+  if(e.touches&&e.touches.length<2)pinchD=0;
+  if(!e.touches)pinchD=0;
   if(tool==="select"&&!dragMoved&&lastPt){
     const cell=toCell(lastPt[0],lastPt[1]);
     if(cell){
@@ -2377,12 +2547,23 @@ window.addEventListener("mouseup",pointerUp);
 cv.addEventListener("touchstart",pointerDown,{passive:false});
 cv.addEventListener("touchmove",pointerMove,{passive:false});
 cv.addEventListener("touchend",pointerUp);
-cv.addEventListener("wheel",e=>{cam.x+=e.deltaX;cam.y+=e.deltaY;e.preventDefault();},{passive:false});
+// ホイール: ピンチ(ctrl)で拡大縮小、通常スクロールは視点移動
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  if(e.ctrlKey){
+    const r=cv.getBoundingClientRect();
+    setZoom(zoom*Math.exp(-e.deltaY*0.01),e.clientX-r.left,e.clientY-r.top);
+  }else{cam.x+=e.deltaX/zoom;cam.y+=e.deltaY/zoom;}
+},{passive:false});
 window.addEventListener("keydown",e=>{
-  const s=24;
+  const s=24/zoom;
   if(e.key==="ArrowLeft")cam.x-=s;if(e.key==="ArrowRight")cam.x+=s;
   if(e.key==="ArrowUp")cam.y-=s;if(e.key==="ArrowDown")cam.y+=s;
+  if(e.key==="+"||e.key==="=")setZoom(zoom*1.25);
+  if(e.key==="-"||e.key==="_")setZoom(zoom/1.25);
 });
+document.getElementById("zoomIn").addEventListener("click",()=>setZoom(zoom*1.3));
+document.getElementById("zoomOut").addEventListener("click",()=>setZoom(zoom/1.3));
 
 // 資材購入 (闇金融マルコは仕入れ -30%)
 function matPrice(base){return retEvo[2]==="usurer"?Math.round(base*0.7):base;}
@@ -2741,6 +2922,7 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     <div class="retainer-list"><b>年代記の結末（${endN} / ${Object.keys(ENDING_DEFS).length}）：</b><br>${endHtml}</div>
     <hr>
     <div class="center"><small>操作：ドラッグで視点移動／👆で部屋を調べる／通路・階段はドラッグで連続配置<br>
+    🔍 右の＋－ボタン・マウスホイール(ピンチ)・二本指で拡大縮小。寄ると住人の暮らしが見える<br>
     次の称号「${next.name}」まで：人口 ${next.pop}人${next.needsThrone?" ＋ 王座の間":""}${next.needsSky?" ＋ 天空の間":""}</small></div>
     <div class="resetline"><button id="resetBtn">⚠ 最初からやり直す</button></div>
     <button onclick="window.__closeScroll()">閉じる</button>
@@ -2972,6 +3154,9 @@ function startNewGame(kind,diff,special){
 // ---------- 起動 ----------
 (async function init(){
   resize();
+  // 既定ズームに合わせて大門を画面中央に
+  cam.x=(GATE_C+GATE_W/2)*TILE-(cv.clientWidth/zoom)/2;
+  cam.y=floorTopY(0)-(cv.clientHeight/zoom)*0.6;
   const loaded=await loadGame();
   if(!loaded){
     placeGate();
