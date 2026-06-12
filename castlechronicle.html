@@ -2243,30 +2243,64 @@ function pickLook(){
   for(const l of pool){roll-=l.w;if(roll<=0)return l;}
   return pool[0];
 }
+// 壁掛けランプ／燭台。夜は炎が揺れ、温かい光輪を落とす
+function lamp(lx,ly,lit,seed){
+  seed=seed||0;
+  ctx.fillStyle="#3a2a16";ctx.fillRect(lx-1,ly,2,4);            // 受け金具
+  if(lit){
+    const fl=.6+.4*Math.sin(perfNow*.012+seed*2.3);
+    ctx.fillStyle=`rgba(255,180,70,${.16*fl})`;                 // 光輪
+    ctx.beginPath();ctx.arc(lx,ly+1,7+fl*2,0,7);ctx.fill();
+    ctx.fillStyle=`rgba(255,150,40,${.55+.35*fl})`;             // 炎
+    ctx.beginPath();ctx.moveTo(lx-1.4,ly+1);ctx.quadraticCurveTo(lx,ly-4-fl*2,lx+1.4,ly+1);ctx.closePath();ctx.fill();
+    ctx.fillStyle=`rgba(255,240,180,${.8})`;ctx.fillRect(lx-.6,ly-1,1.2,2);
+  }else{
+    ctx.fillStyle="#caa53c";ctx.fillRect(lx-1.2,ly-2,2.4,3);    // 消えた蝋燭
+    ctx.fillStyle="#6b5234";ctx.fillRect(lx-.5,ly-3.5,1,1.5);
+  }
+}
 // 住居：ベッドを occ に合わせて並べ、夜は就寝・昼は団欒
 function drawDwelling(r,x,y,w,h,night,o){
   const beds=o.beds, occ=clamp(r.occ,0,beds);
   const lit=night&&r.occ>0;
-  // 上辺の窓（各タイル）
+  // 奥壁の漆喰と腰板
+  ctx.fillStyle=o.posh?"#6e5d44":"#574a39";ctx.fillRect(x+2,y+2,w-4,h-5);
+  ctx.fillStyle=o.posh?"#4e4030":"#41372a";ctx.fillRect(x+2,y+h-7,w-4,3); // 腰板
+  // 上辺の窓（各タイル）と窓辺の植木（裕福な家）
   for(let i=0;i<r.w;i++){
     const wx=x+i*TILE+TILE-9;
-    ctx.fillStyle=lit?"rgba(255,200,110,.9)":"#26303e";
+    ctx.fillStyle=lit?"rgba(255,200,110,.95)":(night?"#1b2330":"#5a86b0");
     ctx.fillRect(wx,y+3,7,6);
     ctx.strokeStyle="#2e2113";ctx.lineWidth=1;ctx.strokeRect(wx+.5,y+3.5,6,5);
     ctx.beginPath();ctx.moveTo(wx+3.5,y+3);ctx.lineTo(wx+3.5,y+9);ctx.stroke();
+    ctx.moveTo(wx,y+6);ctx.lineTo(wx+7,y+6);ctx.stroke();
+    if(o.posh){ctx.fillStyle="#6e4a2e";ctx.fillRect(wx,y+9,7,1.5);        // プランター
+      ctx.fillStyle="#7cab54";ctx.fillRect(wx+1,y+8,1.5,1.5);ctx.fillRect(wx+4,y+8,1.5,1.5);
+      ctx.fillStyle="#e06a8a";ctx.fillRect(wx+2.5,y+7.5,1,1);}            // 花
   }
-  // 床板
-  ctx.fillStyle=o.posh?"#7a5e3a":"#5d4a32";ctx.fillRect(x,y+h-4,w,2);
+  // 壁掛けランプ（タイルごと交互に）
+  for(let i=0;i<r.w;i++)lamp(x+i*TILE+5,y+7,lit,r.id+i);
+  // 床の敷物
+  ctx.fillStyle=o.posh?"#7a2e2e":"#4a3a26";ctx.fillRect(x+3,y+h-4,w-6,2);
+  if(o.posh){ctx.fillStyle="#caa53c";for(let i=3;i<w-6;i+=5)ctx.fillRect(x+i,y+h-3.5,2,1);} // 金糸
+  ctx.fillStyle="#3a2e20";ctx.fillRect(x,y+h-2,w,2);                      // 床板
+  // 奥壁に額（裕福）か質素な棚
+  if(o.posh){ctx.fillStyle="#caa53c";ctx.strokeStyle="#7a5c20";
+    ctx.fillRect(x+3,y+5,5,5);ctx.strokeRect(x+3.5,y+5.5,4,4);}
+  else{ctx.fillStyle="#5d4a32";ctx.fillRect(x+w-9,y+11,7,1.5);
+    ctx.fillStyle="#8a7a52";ctx.fillRect(x+w-8,y+9,1.5,2);ctx.fillRect(x+w-5,y+9,1.5,2);} // 棚と壺
   for(let b=0;b<beds;b++){
     const bx=x+w*(b+0.5)/beds, by=y+h-5;
-    // ベッド
+    // ベッド枠＋脚
     ctx.fillStyle=o.posh?"#6b3f86":"#6e4a2e";ctx.fillRect(bx-6,by-2,12,4);
+    ctx.fillStyle="#4e3420";ctx.fillRect(bx-6,by+1,1.5,2);ctx.fillRect(bx+4.5,by+1,1.5,2);
     ctx.fillStyle="#d8d0c0";ctx.fillRect(bx-6,by-3,3,3);             // 枕
     ctx.fillStyle=o.posh?"#caa0e0":"#b08a64";ctx.fillRect(bx-3,by-2,9,2); // 掛布
+    if(o.posh){ctx.fillStyle="#7e1f1f";ctx.fillRect(bx-6,by-5,12,2);ctx.fillStyle="#caa53c";ctx.fillRect(bx-6,by-5,12,.6);} // 天蓋
     if(b<occ){
       if(night){
         figure(bx-1,by+2,{pose:"sleep",blanket:o.posh?"#9a6ac0":"#8a5a3c",seed:r.id+b});
-        if(b===0){ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="italic 7px serif";
+        if(b===0){ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="italic 7px serif";
           ctx.fillText("z",bx+5,by-4);}
       }else{
         const wears=o.posh?["#3a2a4a","#5e3a78","#6b3050"]:["#5a4a2c","#6e4a2e","#8a4a5e","#3f5e8c","#4e5a3a"];
@@ -2384,23 +2418,36 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-12,y+h-12,24,1);
       break;}
     case "market":{
+      // 奥の石壁
+      ctx.fillStyle=night?"#3b3630":"#6e6557";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 縞模様の日除けテント
       for(let i=0;i<r.w*2;i++){
         ctx.fillStyle=i%2?"#b8412e":"#e6dcc2";
         ctx.beginPath();
-        ctx.moveTo(x+i*TILE/2,y);ctx.lineTo(x+(i+1)*TILE/2,y);
-        ctx.lineTo(x+(i+1)*TILE/2-3,y+7);ctx.lineTo(x+i*TILE/2+3,y+7);
+        ctx.moveTo(x+i*TILE/2,y+1);ctx.lineTo(x+(i+1)*TILE/2,y+1);
+        ctx.lineTo(x+(i+1)*TILE/2-3,y+8);ctx.lineTo(x+i*TILE/2+3,y+8);
         ctx.closePath();ctx.fill();
       }
-      // 屋台と並ぶ品物
-      ctx.fillStyle="#8a6a3a";ctx.fillRect(x+5,y+h-9,10,6);
-      ctx.fillStyle="#7c9456";ctx.fillRect(x+7,y+h-12,3,3);
-      ctx.fillStyle="#b8412e";ctx.fillRect(x+10,y+h-12,3,3);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+13,y+h-12,3,3);
+      ctx.fillStyle="#8a3325";ctx.fillRect(x+2,y+8,w-4,1.5);          // テント縁
+      // 吊るした品（ソーセージ・ハーブ・玉ねぎ）
+      for(let i=0;i<r.w;i++){const hx=x+i*TILE+TILE/2;
+        const goods=["#9a3b2e","#7cab54","#caa53c"][(r.id+i)%3];
+        ctx.fillStyle=goods;ctx.fillRect(hx-1,y+9,2,3.5);ctx.fillRect(hx-3,y+9,2,3);ctx.fillRect(hx+1,y+9,2,3);}
+      // 露店の台と山積みの品
+      const standY=y+h-7;
+      ctx.fillStyle="#7a5430";ctx.fillRect(x+4,standY,w-8,3);         // 木の台
+      ctx.fillStyle="#5a3e22";ctx.fillRect(x+5,standY+3,2,3);ctx.fillRect(x+w-7,standY+3,2,3);
+      const palette=["#7c9456","#b8412e","#caa53c","#9a5a2e","#d06a3a"];
+      for(let i=0;i<r.w*3;i++){const gx=x+7+i*((w-14)/(r.w*3));
+        ctx.fillStyle=palette[(r.id+i)%palette.length];
+        ctx.beginPath();ctx.arc(gx,standY-1,1.7,0,7);ctx.fill();}     // 果物の山
+      // 籠
+      ctx.fillStyle="#b8a45a";ctx.fillRect(x+5,standY-3,4,3);
       // 売り子と買い物客
-      figure(x+9,y+h-3,{pose:"stand",col:"#3a2a16",hat:"#8a6a3a",seed:r.id});       // 売り子
+      figure(x+10,y+h-2,{pose:"stand",col:"#5a4a2c",hat:"#c9b46a",basket:true,seed:r.id}); // 売り子
       const shoppers=Math.min(3,Math.max(1,Math.round((r.happy/100)*3)));
-      for(let i=0;i<shoppers;i++)
-        figure(x+w-10-i*8,y+h-3,{pose:"shop",col:"#241a10",seed:r.id+i+1});
+      for(let i=0;i<shoppers;i++){const lk=AGENT_LOOKS[(r.id+i)%4];
+        figure(x+w-11-i*8,y+h-2,{pose:"shop",col:lk.col,hat:lk.hat,hair:lk.hair,skirt:lk.skirt,seed:r.id+i+1});}
       break;}
     case "workshop":{
       ctx.fillStyle="#7a5430";
@@ -2431,24 +2478,41 @@ function drawRoom(r,night,sIdx){
       break;}
     case "tavern":{
       const lit=night;
-      // 窓と看板
-      ctx.fillStyle=lit?warm(.9):"#3a3220";
-      ctx.fillRect(x+w-14,y+4,8,8);
-      ctx.strokeStyle="#2e2113";ctx.strokeRect(x+w-13.5,y+4.5,7,7);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+2,y+3,2,7);
-      ctx.fillStyle="#8e2b2b";ctx.fillRect(x,y+9,7,5);    // 吊り看板
-      // 樽
-      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-9,y+h-9,6,6);
-      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-7,6,1);
-      // 長卓と酔客（occ/workers に応じて賑わう）
+      // 木組みの奥壁と漆喰
+      ctx.fillStyle=night?"#2e2618":"#5a4a30";ctx.fillRect(x+2,y+2,w-4,h-5);
+      ctx.fillStyle=night?"#241c10":"#473722";                  // 梁
+      ctx.fillRect(x+2,y+2,w-4,2);
+      for(let i=0;i<r.w;i++)ctx.fillRect(x+i*TILE+TILE/2,y+2,1.5,8);
+      // 窓（暖色）
+      ctx.fillStyle=lit?warm(.95):"#3a3220";
+      ctx.fillRect(x+w-14,y+4,8,7);
+      ctx.strokeStyle="#2e2113";ctx.lineWidth=1;ctx.strokeRect(x+w-13.5,y+4.5,7,6);
+      ctx.beginPath();ctx.moveTo(x+w-10,y+4);ctx.lineTo(x+w-10,y+11);ctx.stroke();
+      // 吊り看板（麦酒のジョッキ印）
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+2,y+2,1.5,5);
+      ctx.fillStyle="#8e2b2b";ctx.fillRect(x-1,y+7,8,5);
+      ctx.fillStyle="#e8c84a";ctx.fillRect(x+1.5,y+8.5,2.5,2.5);
+      // 背後の酒棚（瓶を並べる）
+      ctx.fillStyle="#3e2a16";ctx.fillRect(x+5,y+10,w*0.4,2);
+      for(let i=0;i<5;i++){ctx.fillStyle=["#7cab54","#9a3b2e","#caa53c","#5a9ad0"][i%4];
+        ctx.fillRect(x+6+i*4,y+6.5,2,4);}
+      // 吊りランプ
+      lamp(x+w/2,y+8,lit,r.id);
+      // 樽の山
+      for(let b=0;b<2;b++){ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-10,y+h-6-b*5,7,5);
+        ctx.fillStyle="#4e3420";ctx.fillRect(x+w-10,y+h-4.5-b*5,7,1);ctx.fillRect(x+w-10,y+h-7+b*-5+5,7,0.8);}
+      // 長卓・腰掛け・酔客（occ/workers に応じて賑わう）
       const tableY=y+h-6;
       ctx.fillStyle="#5a3c22";ctx.fillRect(x+5,tableY,w-22,3);  // 卓
+      ctx.fillStyle="#3e2a16";ctx.fillRect(x+6,tableY+3,1.5,3);ctx.fillRect(x+w-18,tableY+3,1.5,3);
       const seats=Math.min(4, r.w);
       const patrons=lit?seats:Math.max(1,Math.round(seats*0.5));
       for(let i=0;i<patrons;i++){
         const px=x+9+i*((w-26)/Math.max(1,seats-1));
         ctx.fillStyle="#caa227";ctx.fillRect(px-1,tableY-2,2,2);   // 卓上のジョッキ
-        figure(px,tableY+3,{pose:"drink",col:"#241a10",seed:r.id+i});
+        if((r.id+i)%3===0){ctx.fillStyle="#e8c84a";ctx.fillRect(px+2.5,tableY-1.5,1.5,1.5);} // パン皿
+        const lk=AGENT_LOOKS[(r.id+i+2)%5];
+        figure(px,tableY+3,{pose:"drink",col:lk.col,hat:lk.hat,seed:r.id+i});
       }
       break;}
     case "barracks":{
@@ -2589,8 +2653,211 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle=`rgba(120,80,220,${.3+.4*fl})`;
       ctx.beginPath();ctx.ellipse(x+TILE/2,y+h/2,5,8,0,0,7);ctx.fill();
       break;}
+    case "brewery":{
+      ctx.fillStyle=night?"#2e2618":"#5a4a30";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 仕込み桶（泡が立つ）
+      for(let i=0;i<Math.min(2,r.w-1);i++){const vx=x+9+i*15;
+        ctx.fillStyle="#6e4a2e";ctx.fillRect(vx-5,y+h-12,10,9);
+        ctx.fillStyle="#4e3420";ctx.fillRect(vx-5,y+h-12,10,1.5);ctx.fillRect(vx-5,y+h-6,10,1);
+        ctx.fillStyle="#caa53c";ctx.fillRect(vx-4,y+h-11,8,3);             // 麦汁
+        const bub=Math.sin(t*4+i)*1;ctx.fillStyle="#e8d8a0";
+        ctx.beginPath();ctx.arc(vx-2,y+h-10+bub,.8,0,7);ctx.arc(vx+2,y+h-11-bub,.8,0,7);ctx.fill();}
+      lamp(x+w-7,y+8,night,r.id);
+      // 樽の山
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-12,y+h-7,8,4);
+      ctx.fillStyle="#4e3420";ctx.fillRect(x+w-12,y+h-5.5,8,1);
+      figure(x+w-8,y+h-3,{pose:"work",col:"#5a4128",hat:"#7a5430",seed:r.id});
+      break;}
+    case "granary":{
+      ctx.fillStyle=night?"#2c2416":"#6e5c3a";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 麦束
+      for(let i=0;i<r.w*2;i++){const sx=x+5+i*((w-10)/(r.w*2));
+        ctx.strokeStyle="#caa53c";ctx.lineWidth=1.4;
+        ctx.beginPath();ctx.moveTo(sx,y+h-3);ctx.lineTo(sx,y+9);ctx.moveTo(sx-1.5,y+11);ctx.lineTo(sx,y+8);ctx.lineTo(sx+1.5,y+11);ctx.stroke();}
+      ctx.lineWidth=1;
+      // 穀物袋
+      ctx.fillStyle="#cbb892";ctx.fillRect(x+w-14,y+h-9,6,6);ctx.fillRect(x+w-8,y+h-7,5,4);
+      ctx.fillStyle="#a08b5e";ctx.fillRect(x+w-14,y+h-9,6,1.4);
+      break;}
+    case "monastery":{
+      ctx.fillStyle=night?"#2a2a32":"#7a7468";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // アーチの回廊
+      for(let i=0;i<r.w+1;i++){const ax=x+4+i*((w-8)/r.w);
+        ctx.fillStyle=night?"#3a3a44":"#8a8478";ctx.fillRect(ax,y+6,2.5,h-9);}
+      // 蝋燭と祭壇
+      lamp(x+6,y+8,true,r.id);
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-12,y+h-7,7,4);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-11,1.4,5);ctx.fillRect(x+w-10.5,y+h-10,4,1.4); // 十字
+      // 祈る修道士
+      figure(x+w/2,y+h-3,{pose:"pray",col:"#5a554a",seed:r.id});
+      figure(x+w/2-9,y+h-3,{pose:"kneel",col:"#6a6458",seed:r.id+1});
+      break;}
+    case "garden":{
+      ctx.fillStyle="#4a3a26";ctx.fillRect(x,y+h-6,w,4);          // 花壇の土
+      // 小さな木
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+8,y+h-12,2,7);
+      ctx.fillStyle=night?"#2e4a2e":"#5e8a3c";ctx.beginPath();ctx.arc(x+9,y+h-13,5,0,7);ctx.fill();
+      // 花の列
+      const fcol=["#e06a8a","#caa53c","#7c9ad0","#e8e0a0"];
+      for(let i=0;i<r.w*3;i++){const fx=x+14+i*((w-20)/(r.w*3));
+        ctx.fillStyle="#5e8a3c";ctx.fillRect(fx,y+h-9,1,4);
+        ctx.fillStyle=fcol[(r.id+i)%4];ctx.beginPath();ctx.arc(fx+.5,y+h-10,1.6,0,7);ctx.fill();}
+      // ベンチと佇む人
+      ctx.fillStyle="#7a5430";ctx.fillRect(x+w-13,y+h-6,9,1.5);ctx.fillRect(x+w-12,y+h-5,1,3);ctx.fillRect(x+w-5,y+h-5,1,3);
+      figure(x+w-9,y+h-3,{pose:"sit",col:"#5e3a78",seed:r.id});
+      break;}
+    case "mine":{
+      ctx.fillStyle=night?"#241c14":"#3a2e22";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 鉱脈（鉄の輝き）
+      for(let i=0;i<r.w*2;i++){const ox=x+5+i*((w-10)/(r.w*2)), oy=y+6+((i%2)?4:0);
+        ctx.fillStyle="#8a8f96";ctx.beginPath();ctx.arc(ox,oy,1.6,0,7);ctx.fill();
+        ctx.fillStyle="#cdd2d8";ctx.fillRect(ox-.5,oy-.5,1,1);}
+      // トロッコ
+      ctx.fillStyle="#4a3a2a";ctx.fillRect(x+w-13,y+h-7,9,4);
+      ctx.fillStyle="#8a8f96";ctx.fillRect(x+w-12,y+h-8,7,2);
+      ctx.fillStyle="#222";ctx.beginPath();ctx.arc(x+w-11,y+h-3,1.3,0,7);ctx.arc(x+w-6,y+h-3,1.3,0,7);ctx.fill();
+      // ツルハシを振る坑夫
+      figure(x+9,y+h-3,{pose:"work",col:"#3a2c1c",hat:"#5a4a30",seed:r.id});
+      break;}
+    case "mushroom":{
+      ctx.fillStyle=night?"#1e2620":"#2c3a2e";ctx.fillRect(x+2,y+2,w-4,h-5);
+      ctx.fillStyle="#3a2e22";ctx.fillRect(x,y+h-5,w,3);          // 培地
+      // 光る茸の群れ
+      for(let i=0;i<r.w*3;i++){const mx=x+6+i*((w-12)/(r.w*3)), mh=2+((r.id+i)%3);
+        ctx.fillStyle="#cdbfa0";ctx.fillRect(mx-.5,y+h-5-mh,1.4,mh);   // 軸
+        const gl=.5+.5*Math.sin(t*2+i);
+        ctx.fillStyle=`rgba(120,210,180,${.55+.35*gl})`;             // 笠（燐光）
+        ctx.beginPath();ctx.ellipse(mx,y+h-5-mh,2.4,1.6,0,Math.PI,0);ctx.fill();
+        ctx.fillStyle=`rgba(180,255,220,${.4*gl})`;ctx.beginPath();ctx.arc(mx,y+h-6-mh,3.5,0,7);ctx.fill();}
+      break;}
+    case "armory":{
+      ctx.fillStyle=night?"#26272c":"#4a4a52";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 武器掛け
+      ctx.fillStyle="#5a4630";ctx.fillRect(x+4,y+6,w-8,2);
+      for(let i=0;i<r.w*2;i++){const wx2=x+7+i*((w-14)/(r.w*2));
+        if(i%3===0){ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(wx2,y+8);ctx.lineTo(wx2,y+h-4);ctx.stroke();ctx.lineWidth=1; // 槍
+          ctx.fillStyle="#cdd2d8";ctx.beginPath();ctx.moveTo(wx2,y+7);ctx.lineTo(wx2-1.4,y+10);ctx.lineTo(wx2+1.4,y+10);ctx.fill();}
+        else if(i%3===1){ctx.fillStyle=["#8e2b2b","#3f5e8c"][(r.id+i)%2];   // 盾
+          ctx.beginPath();ctx.moveTo(wx2-3,y+9);ctx.lineTo(wx2+3,y+9);ctx.lineTo(wx2+3,y+14);ctx.lineTo(wx2,y+17);ctx.lineTo(wx2-3,y+14);ctx.closePath();ctx.fill();
+          ctx.strokeStyle="#caa53c";ctx.stroke();}
+        else{ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(wx2,y+8.5);ctx.lineTo(wx2,y+15);ctx.stroke();ctx.lineWidth=1; // 剣
+          ctx.strokeStyle="#7a5430";ctx.beginPath();ctx.moveTo(wx2-2,y+10);ctx.lineTo(wx2+2,y+10);ctx.stroke();}}
+      break;}
+    case "cathedral":{
+      ctx.fillStyle=night?"#222634":"#8a8478";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 大きなバラ窓
+      const rosX=x+w/2, rosY=y+9, gl=night?.95:.7;
+      const petal=["#b8412e","#3f5e8c","#caa53c","#5e8a3c"];
+      for(let k=0;k<6;k++){const a=k/6*Math.PI*2;
+        ctx.fillStyle=`rgba(${k%2?"180,70,50":"70,110,180"},${gl})`;
+        ctx.beginPath();ctx.arc(rosX+Math.cos(a)*3,rosY+Math.sin(a)*3,2.2,0,7);ctx.fill();}
+      ctx.fillStyle=`rgba(255,240,180,${gl})`;ctx.beginPath();ctx.arc(rosX,rosY,1.6,0,7);ctx.fill();
+      // 尖塔アーチ窓を左右に
+      for(const ax of [x+8,x+w-8]){ctx.fillStyle=night?"#caa53c":"#3a5a86";
+        ctx.beginPath();ctx.moveTo(ax-2,y+16);ctx.lineTo(ax-2,y+8);ctx.quadraticCurveTo(ax,y+4,ax+2,y+8);ctx.lineTo(ax+2,y+16);ctx.closePath();ctx.globalAlpha=gl;ctx.fill();ctx.globalAlpha=1;}
+      // 祭壇と祈る人々
+      ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w/2-5,y+h-6,10,3);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-.7,y+h-12,1.4,6);ctx.fillRect(x+w/2-2.5,y+h-10,5,1.4);
+      for(let i=0;i<Math.min(4,r.w-1);i++)figure(x+7+i*9,y+h-3,{pose:"pray",col:"#4a4452",seed:r.id+i});
+      break;}
+    case "alchemy":{
+      ctx.fillStyle=night?"#1f2630":"#3e4a40";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 棚に並ぶ色とりどりの瓶
+      ctx.fillStyle="#3a2e1e";ctx.fillRect(x+4,y+10,w*0.5,1.6);
+      const vc=["#7cab54","#9a3bce","#caa53c","#5a9ad0","#e06a3a"];
+      for(let i=0;i<6;i++){ctx.fillStyle=vc[i%5];ctx.fillRect(x+5+i*4,y+6,2.4,4);
+        ctx.fillStyle="#cdd2d8";ctx.fillRect(x+5.5+i*4,y+5,1.4,1);}
+      // 蒸留器（フラスコがぐつぐつ）
+      const fx=x+w-12;ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1;
+      ctx.fillStyle="#3a5c5a";ctx.beginPath();ctx.arc(fx,y+h-6,3.5,0,7);ctx.fill();
+      const bub=.5+.5*Math.sin(t*5);ctx.fillStyle=`rgba(130,230,160,${.5+.4*bub})`;
+      ctx.beginPath();ctx.arc(fx,y+h-6,2.2,0,7);ctx.fill();
+      ctx.fillStyle="#9aa6b2";ctx.fillRect(fx-.7,y+h-12,1.4,4);
+      ctx.fillStyle=`rgba(180,255,200,${.4*bub})`;ctx.beginPath();ctx.arc(fx,y+h-12,2,0,7);ctx.fill();
+      figure(x+9,y+h-3,{pose:"read",col:"#3a4a3a",hood:true,seed:r.id});
+      break;}
+    case "fairyfountain":{
+      ctx.fillStyle=night?"#1c2630":"#3a4e5a";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 泉
+      ctx.fillStyle="#3a5a6e";ctx.fillRect(x+w/2-8,y+h-6,16,3);
+      ctx.fillStyle="#5a8aa0";ctx.fillRect(x+w/2-1.4,y+h-12,2.8,6);
+      const sp=.5+.5*Math.sin(t*4);
+      ctx.fillStyle=`rgba(150,220,240,${.55+.3*sp})`;               // 噴き上がる水
+      ctx.beginPath();ctx.ellipse(x+w/2,y+h-13,3+sp,4,0,0,7);ctx.fill();
+      // 舞う燐光
+      for(let i=0;i<6;i++){const a=t*1.5+i;const fxp=x+w/2+Math.cos(a)*8, fyp=y+h-9+Math.sin(a*1.3)*4;
+        ctx.fillStyle=`rgba(190,240,255,${.4+.4*Math.sin(t*3+i)})`;ctx.fillRect(fxp,fyp,1.4,1.4);}
+      break;}
+    case "printing":{
+      ctx.fillStyle=night?"#2a2620":"#5e5446";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 印刷機（ねじ式プレス）
+      const mx=x+w/2-2;
+      ctx.fillStyle="#4a3826";ctx.fillRect(mx-7,y+5,14,h-9);
+      ctx.fillStyle="#6e5436";ctx.fillRect(mx-9,y+h-7,18,3);          // 版盤
+      ctx.strokeStyle="#caa53c";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(mx,y+6);ctx.lineTo(mx,y+12);ctx.stroke();ctx.lineWidth=1; // ねじ
+      ctx.fillStyle="#caa53c";ctx.beginPath();ctx.arc(mx,y+6,2.4,0,7);ctx.fill();
+      // 刷り上がった紙束
+      ctx.fillStyle="#efe6cf";for(let i=0;i<3;i++)ctx.fillRect(x+w-11,y+h-6-i,7,1.4);
+      figure(x+8,y+h-3,{pose:"work",col:"#3a3226",hat:"#4a3826",seed:r.id});
+      break;}
+    case "courthouse":{
+      ctx.fillStyle=night?"#262232":"#6e6658";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 天秤
+      const sx2=x+w/2;ctx.strokeStyle="#caa53c";ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(sx2,y+5);ctx.lineTo(sx2,y+10);ctx.moveTo(sx2-6,y+8);ctx.lineTo(sx2+6,y+8);
+      ctx.moveTo(sx2-6,y+8);ctx.lineTo(sx2-6,y+11);ctx.moveTo(sx2+6,y+8);ctx.lineTo(sx2+6,y+11);ctx.stroke();ctx.lineWidth=1;
+      ctx.fillStyle="#caa53c";ctx.fillRect(sx2-7.5,y+11,3,1.4);ctx.fillRect(sx2+4.5,y+11,3,1.4);
+      // 判事の席
+      ctx.fillStyle="#5a3c22";ctx.fillRect(x+5,y+h-7,w-10,4);
+      ctx.fillStyle="#7e1f1f";ctx.fillRect(x+w/2-5,y+h-10,10,3);
+      figure(x+w/2,y+h-3,{pose:"sit",col:"#3a2a2a",hat:"#222",seed:r.id});
+      break;}
+    case "parliamenthall":{
+      ctx.fillStyle=night?"#242a30":"#5e6258";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 半円の議席
+      for(let row=0;row<2;row++){const ry=y+h-5-row*4;
+        ctx.fillStyle=row?"#6e5436":"#5a4128";ctx.fillRect(x+5+row*3,ry,w-10-row*6,2);
+        for(let i=0;i<r.w+1;i++)if(Math.random()<1)figure(x+8+i*((w-16)/(r.w)),ry+1,{pose:"sit",col:["#3f5e8c","#5e3a3a","#3a5a3a"][(r.id+i+row)%3],seed:r.id+i+row*7});}
+      // 演壇
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-2,y+5,4,3);
+      break;}
+    case "guildhall":{
+      ctx.fillStyle=night?"#2a2418":"#5e4e34";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // ギルド旗
+      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+w/2-6,y+4,12,8);
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-1,y+6,2,4);ctx.fillRect(x+w/2-3,y+7,6,1.4); // 槌の紋
+      // 道具棚（金床・槌・鋸）
+      ctx.fillStyle="#5a4630";ctx.fillRect(x+4,y+h-7,w-8,3);
+      ctx.fillStyle="#8a8f96";ctx.fillRect(x+6,y+h-10,4,2);              // 金床
+      ctx.strokeStyle="#7a5430";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x+w-9,y+h-5);ctx.lineTo(x+w-9,y+h-11);ctx.stroke();ctx.lineWidth=1;
+      ctx.fillStyle="#5a4630";ctx.fillRect(x+w-11,y+h-12,5,2);          // 槌頭
+      figure(x+w/2-9,y+h-3,{pose:"stand",col:"#4a3826",hat:"#5a4630",seed:r.id});
+      break;}
+    case "taxoffice":{
+      ctx.fillStyle=night?"#2a2620":"#5e564a";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 帳簿机
+      ctx.fillStyle="#5a3c22";ctx.fillRect(x+5,y+h-8,w-10,3);
+      ctx.fillStyle="#efe6cf";ctx.fillRect(x+7,y+h-10,6,2.4);          // 帳簿
+      ctx.fillStyle="#a08b5e";ctx.fillRect(x+7,y+h-10,6,.7);
+      // 金貨の山
+      ctx.fillStyle="#caa53c";for(let i=0;i<4;i++)ctx.fillRect(x+w-10-i,y+h-6-Math.floor(i/2),2,1.4);
+      figure(x+10,y+h-3,{pose:"read",col:"#3a322a",hat:"#222",seed:r.id});
+      break;}
+    case "stonegen":{
+      ctx.fillStyle=night?"#221a1e":"#3a2e2e";ctx.fillRect(x+2,y+2,w-4,h-5);
+      // 台座の上の賢者の石（脈動する赤）
+      ctx.fillStyle="#4a3a2a";ctx.fillRect(x+w/2-4,y+h-7,8,4);
+      const pl=.5+.5*Math.sin(t*3);
+      ctx.fillStyle=`rgba(220,60,40,${.6+.4*pl})`;ctx.beginPath();ctx.arc(x+w/2,y+h-9,2.6+pl,0,7);ctx.fill();
+      ctx.fillStyle=`rgba(255,180,120,${.4*pl})`;ctx.beginPath();ctx.arc(x+w/2,y+h-9,5+pl*2,0,7);ctx.fill();
+      // 錬成陣
+      ctx.strokeStyle=`rgba(220,120,80,${.5+.3*pl})`;ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x+w/2,y+h-4,7,Math.PI,0);ctx.stroke();
+      // 金塊
+      ctx.fillStyle="#caa53c";ctx.fillRect(x+6,y+h-6,5,3);ctx.fillRect(x+w-11,y+h-6,5,3);
+      break;}
     default:{
-      // 新施設は紋章 (絵文字) を掲げる
+      // それでも未定義の施設は紋章 (絵文字) を掲げる
       if(ROOMS[r.type]&&ROOMS[r.type].ico){
         ctx.font="13px serif";ctx.textAlign="center";
         ctx.fillText(ROOMS[r.type].ico,x+w/2,y+h/2+5);
