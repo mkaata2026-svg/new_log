@@ -859,8 +859,16 @@ function dailyTick(){
     for(let i=(flags.faithTier||0);i<ft;i++)toast(FAITH_TIERS[i].msg,"gold");
     flags.faithTier=ft;sndMystic();
   }
-  // ロデリックが地図庫の長に収まった後の、静かな実り (毎年わずかな名声)
-  if(flags.rodCartographer&&seasonIdx()===0&&seasonDay()===1)res.fame=Math.min(9999,res.fame+5);
+  // サーガ後日談の恒常効果 (毎年めぐる実り)
+  if(seasonIdx()===0&&seasonDay()===1){
+    if(flags.rodCartographer)res.fame=Math.min(9999,res.fame+5);          // 地図庫の長
+    if(flags.roseAlliance){res.gold+=300;toast("🌹 アヴェリンとの同盟交易が実った +300G","gold");}
+    if(flags.marcoOrphanage){allHomes(4);res.fame=Math.min(9999,res.fame+3);
+      toast("🏠 マルコの孤児院の子らが、春の花を城中に飾った（全住居の幸福+4）");}
+  }
+  if(seasonIdx()===2&&seasonDay()===1&&flags.boyScribe){
+    res.lore+=4;toast("🖋 書記テオの写本が書庫に加わった "+loreName()+"+4");
+  }
   checkMilestones();
   checkEra();
   chainTick();
@@ -1293,10 +1301,10 @@ const EVENTS=[
   {id:"foundling",t:"謎の少年",ico:"🧒",cond:()=>day>10,
    txt:"門前に少年が立っていた。出自を問えば「塔の中でずっと育った。外は初めて」と言う。所作は、なぜか王族のそれである。",
    a:{label:"城で保護する（-食料5）",ps:{mercy:+5},wv:{fantasy:+3},
-      fx:()=>{res.food=Math.max(0,res.food-5);allHomes(4);
+      fx:()=>{res.food=Math.max(0,res.food-5);allHomes(4);flags.boyKept=true;
       return "🧒 少年は驚くべき速さで学んでいく。厨房の婆やがすっかり手なずけられた";}},
    b:{label:"王都の修道院に預ける",ps:{control:+3,mercy:-2},
-      fx:()=>{res.gold+=150;return "⛪ 修道院から謝礼150G。後日「あの子は一体何者か」と問い合わせの書状が三通来た";}}},
+      fx:()=>{res.gold+=150;flags.boySent=true;return "⛪ 修道院から謝礼150G。後日「あの子は一体何者か」と問い合わせの書状が三通来た";}}},
   {id:"moonprophet",t:"月の預言者",ico:"🌙",cond:()=>!flags.prophecyShield&&day>8,
    txt:"月を見つめ続けて目を傷めたという老人が予言を売りに来た。「近く、闇が城の金蔵を狙う。備えを売ろう」",
    a:{label:"予言を買う（-200G）",wv:{fantasy:+4},ps:{tradition:-3},
@@ -1508,8 +1516,8 @@ function showChainStage(id,st,def,ev){
 const SAGAS={
   // 第一作: 探検家ロデリックの航海。派遣→報告→消息不明→帰還の人間ドラマ
   horizon:{
-    name:"地平の彼方", ico:"🧭",
-    hero:{name:"ロデリック", role:"探検家", ico:"🧭"},
+    name:"地平の彼方", ico:"🧭", img:"img/saga-horizon.jpg",
+    hero:{name:"ロデリック", role:"探検家", ico:"🧭", img:"img/hero-roderick.jpg"},
     start:()=>rankIdx>=2&&day>SEASON_LEN,           // 男爵以降、ひと季節たって登場
     stages:{
       intro:{ status:"城門で謁見を待っている",
@@ -1599,6 +1607,238 @@ const SAGAS={
         ]},
     }
   },
+
+  // 第二作: 財務官マルコの「二重の帳簿」— 年月をかけて真実が暴かれる家臣ドラマ
+  ledger:{
+    name:"二重の帳簿", ico:"🕯", img:"img/saga-ledger.jpg",
+    hero:{name:"マルコ", role:"財務官", ico:"💰", img:"img/marco.jpg"},
+    start:()=>hasRet(2)&&rankIdx>=3&&day>SEASON_LEN*2,
+    stages:{
+      intro:{ status:"匿名の告発文が届いた",
+        t:"夜更けの告発文", kind:"choice",
+        txt:"執務机に、差出人のない文が置かれていた。<br>「<b>財務官どのの帳簿は二冊ある</b>。月々、金庫から銀が滲み出ていることを、御身はご存じか」<br>……マルコが? あの几帳面な男が? だが帳簿を検めれば、確かに毎月、説明のつかぬ小さな穴がある。",
+        choices:[
+          {label:"内密に調べさせる", to:"probe", gap:6,
+           fx:()=>{persShift({control:-4});return "🕯 静かな調査が始まった。マルコは、何も知らない";}},
+          {label:"マルコ本人に直接問う", to:"confront", gap:3,
+           fx:()=>{persShift({control:-2,mercy:+2});return "🚪 「殿が、直々に……?」呼び出しを告げられたマルコの顔から、血の気が引いた";}},
+          {label:"告発文を燃やす", to:"end", endStatus:"疑いは闇に葬られた",
+           fx:()=>{persShift({control:+5});return "🔥 文は灰になった。信じる、と決めた。……それでも時折、帳簿の数字が目に焼きつく";}},
+        ]},
+      probe:{ status:"帳簿の影を追っている",
+        t:"消えた銀の行方", kind:"choice",
+        txt:"調査の報せが来た。"+"<br>「毎月、確かに少額が消えています。経路は巧妙に洗われていますが——行き着く先は、<b>貧民街の古い倉庫</b>。夜、マルコ様ご本人が出入りしています」<br>あの男は夜の貧民街で、何をしている?",
+        choices:[
+          {label:"今夜、自ら張り込む", to:"stake", gap:4,
+           fx:()=>{return "🌙 外套を目深に、城主は夜の街へ降りた";}},
+          {label:"問答無用で捕縛する", to:"confront", gap:2,
+           fx:()=>{persShift({tyranny:-4,mercy:-3});return "⛓ 衛兵がマルコの部屋の扉を叩いた。「……ようやく、この日が来ましたか」と彼は呟いたという";}},
+        ]},
+      stake:{ status:"貧民街の倉庫を張り込み中",
+        t:"倉庫の灯", kind:"choice",
+        txt:"倉庫の戸の隙間から、灯りが漏れている。中を覗いた城主は、言葉を失った。<br>長机に並ぶ粥の椀。継ぎだらけの毛布。そして<b>二十人あまりの孤児たち</b>に、あの気難しい財務官が、眼鏡を曇らせて文字を教えている。<br>「いいか、銭は血だ。だがな——血は、巡らせるためにある」<br>消えた銀は、ここに流れていた。城の金に、彼の私財のほぼ全てを足して。",
+        choices:[
+          {label:"孤児院を公費で支える（-300G）", to:"end", endStatus:"マルコの孤児院は城の誇りになった",
+           fx:()=>{res.gold-=300;flags.marcoOrphanage=true;allHomes(6);persShift({mercy:+6,greed:+5});
+             return "🏠 翌朝、倉庫に城の紋章旗が掲げられた。マルコは何も言わず、深く、長く頭を下げた——以後、毎年春に孤児たちが城に幸せを運ぶ";}},
+          {label:"善行でも横領は横領。罰俸とする（+300G）", to:"end", endStatus:"罰俸の沙汰に、城下は今も賛否両論",
+           fx:()=>{res.gold+=300;allHomes(-4);persShift({mercy:-5,tradition:-3});
+             return "⚖️ 「……仰せの通りに」マルコは静かに受け入れた。孤児院は続いている。彼の俸給は、もっと細くなった";}},
+        ]},
+      confront:{ status:"マルコが告白を始めた",
+        t:"財務官の告白", kind:"choice",
+        txt:"マルコは長い沈黙ののち、震える手で<b>二冊目の帳簿</b>を差し出した。<br>「お疑いの通りです。私は城の銭を、月々、動かしておりました。——貧民街の孤児院に。戦で親を失った子らです。私の私財だけでは、冬を越せませんでした」<br>「申し開きはしません。ただ、あの子らに罪はない。それだけは」",
+        choices:[
+          {label:"孤児院を公費で支える（-300G）", to:"end", endStatus:"マルコの孤児院は城の誇りになった",
+           fx:()=>{res.gold-=300;flags.marcoOrphanage=true;allHomes(6);persShift({mercy:+6,greed:+5});
+             return "🏠 「殿……」マルコの眼鏡が、今度は別の理由で曇った——以後、毎年春に孤児たちが城に幸せを運ぶ";}},
+          {label:"善行でも横領は横領。罰俸とする（+300G）", to:"end", endStatus:"罰俸の沙汰に、城下は今も賛否両論",
+           fx:()=>{res.gold+=300;allHomes(-4);persShift({mercy:-5});
+             return "⚖️ 「……公正な御沙汰です」マルコは一礼した。その背中は、なぜか少しだけ軽く見えた";}},
+        ]},
+    }
+  },
+  // 第三作: 隣国の王女エリアンヌ —「白薔薇の盟約」恋と戦の外交ドラマ
+  rose:{
+    name:"白薔薇の盟約", ico:"🌹", img:"img/saga-rose.jpg",
+    hero:{name:"エリアンヌ", role:"アヴェリン王国の王女", ico:"🌹", img:"img/hero-eliane.jpg"},
+    start:()=>rankIdx>=4&&res.fame>=150,
+    stages:{
+      intro:{ status:"城下に気品ある旅人が…",
+        t:"市場の貴婦人", kind:"choice",
+        txt:"市場の喧噪の中、一人だけ拍子の違う足音があった。粗末な外套に身をやつしているが、果物の値切り方がぎこちなく、立ち姿が<b>まっすぐすぎる</b>。<br>シルヴィアがいれば囁くだろう——あれは、隣国アヴェリンの紋章付きの靴。<br>お忍びの貴人が、貴公の城下を見に来ている。",
+        choices:[
+          {label:"丁重に城へお招きする", to:"visit", gap:2,
+           fx:()=>{return "🏰 「……気づいておいででしたか」外套の下で、貴婦人は悪戯が見つかった子どものように笑った";}},
+          {label:"気づかぬふりで、陰から護衛だけ付ける", to:"visit", gap:3,
+           fx:()=>{flags.roseGentle=true;persShift({mercy:+4,control:+3});
+             return "🕊 貴婦人は丸一日、城下を心ゆくまで歩いた。その自由を守る影に、最後まで気づかずに——いや、気づいていて、黙っていたのかもしれない";}},
+        ]},
+      visit:{ status:"王女エリアンヌが滞在している",
+        t:"白薔薇の正体", kind:"auto", to:"_impression", gap:2,
+        txt:"貴婦人は名乗った。<b>エリアンヌ・ド・アヴェリン</b>——隣国の第一王女。<br>「堅苦しい謁見は嫌いなの。この城が、噂通りの城か、自分の目で確かめたかった」<br>王女は城を歩く。礼拝堂の窓を、庭園の花を、酒場の歌を。その横顔が何を思うかは、まだ読めない。",
+        },
+      _impression:{ status:"王女が城を見て回っている",
+        resolve:()=>{
+          const culture=countType("chapel")+countType("garden")+countType("tavern")
+            +countType("university")+countType("magetower")+countType("cathedral")+countType("fairyfountain");
+          return (culture>=3||flags.roseGentle)?"charmed":"cool";
+        }},
+      charmed:{ status:"王女と文が往き来している",
+        t:"花の便り", kind:"choice",
+        txt:"帰国した王女から、白薔薇を一輪添えた文が届いた。<br>「あなたの城は、石でできた詩でした。礼拝堂の光も、庭の花も、酒場の濁声の歌でさえも。<br>——また、文を書いても?」<br>こうして、国境を越える文通が始まった。",
+        choices:[
+          {label:"文に、城下の歌を一節添えて返す", to:"proposal", gap:SEASON_LEN*2,
+           fx:()=>{res.fame=Math.min(9999,res.fame+10);persShift({tradition:+4});
+             return "🎻 返事はすぐに来た。「次はあなたの声で聴きたいものね」——名声+10";}},
+          {label:"政と実利の話だけを丁寧に綴る", to:"proposal", gap:SEASON_LEN*2,
+           fx:()=>{wvShift({realism:+4});res.gold+=200;
+             return "📜 文通は通商の根回しに化けた。関税の口約束で+200G。王女の返事は、少しだけ短くなった";}},
+        ]},
+      cool:{ status:"王女は何も言わず帰国した…",
+        t:"冷えた風", kind:"choice",
+        txt:"王女は予定を切り上げ、短い礼だけを残して帰国した。<br>数季ののち、国境から不穏な報せが届く。アヴェリンの宰相が「我が王女が辺境で<b>軽んじられた</b>」と喧伝し、兵を集めているという。<br>あの日の城は、王女の目にどう映ったのか——今となっては、知る術もない。",
+        choices:[
+          {label:"成り行きを見守る", to:"warpath", gap:SEASON_LEN,
+           fx:()=>{return "🌫 国境の空気が、日ごとに重くなっていく";}},
+        ]},
+      proposal:{ status:"アヴェリンから盟約の打診",
+        t:"盟約と、宰相の棘", kind:"choice",
+        txt:"アヴェリンから正式な使節が来た。口上は——<b>同盟、そして王女との縁組</b>。<br>だが使節に同行した宰相の名代が、薄笑いで付け加える。<br>「むろん、釣り合いというものがございます。持参の御礼として<b>金2,000</b>。ご用意できねば、この話、なかったことに」<br>王女の文が脳裏をよぎる。あの人の意志は、この棘の向こうにある。",
+        choices:[
+          {label:"盟約を結ぶ（-2,000G）", to:()=>res.gold>=2000?"end":"warpath", gap:SEASON_LEN,
+           endStatus:"エリアンヌ妃と、白薔薇の盟約のもとに",
+           fx:()=>{if(res.gold<2000){allHomes(-3);
+               return "💸 ……金庫が、足りなかった。使節は引き揚げ、宰相派は嵩にかかって兵を集め始めた";}
+             res.gold-=2000;flags.roseAlliance=true;res.fame=Math.min(9999,res.fame+50);allHomes(12);
+             return "💒 鐘が鳴った。白薔薇の旗と城の旗が、並んで揚がる。名声+50——以後、毎年春に同盟交易の実りが届く";}},
+          {label:"金で買う縁談ではない、と突き返す", to:"warpath", gap:SEASON_LEN,
+           fx:()=>{persShift({greed:+4,tradition:+3});
+             return "⚔️ 使節は青ざめ、宰相の名代だけがなぜか満足げに帰っていった。——これが、奴の狙いだったか";}},
+        ]},
+      warpath:{ status:"⚠ アヴェリンとの開戦前夜",
+        t:"国境の篝火", kind:"choice",
+        txt:"国境の丘に、アヴェリン軍の篝火が数えきれぬほど灯った。宰相が全権を握り、開戦は明朝と布告されている。<br>城の評定は割れた。迎え撃つか。それとも——王女はまだ、こちらの言葉を信じてくれるだろうか。",
+        choices:[
+          {label:"城壁で迎え撃つ", to:()=>security()>=14?"victory":"defeat", gap:2,
+           fx:()=>{return "🛡 篝火に照らされ、城壁に兵が並ぶ。長い夜になる";}},
+          {label:"単騎、王女への直訴に賭ける", to:()=>(personality.mercy>=60||res.fame>=250)?"peace":"defeat", gap:2,
+           fx:()=>{return "🐎 夜陰に紛れ、城主は供も連れず国境を越えた——剣ではなく、一通の文だけを持って";}},
+        ]},
+      victory:{ status:"戦勝——講和の使者を待つ",
+        t:"夜明けの旗", kind:"choice",
+        txt:"敵の先鋒は城壁の前で三度崩れ、夜明けとともに退いた。数日後、講和の使者——その先頭に、白馬の王女がいた。<br>「宰相は失脚しました。……愚かな戦でした。あなたの城壁が固くて、本当によかった」<br>王女は初めて、公の場で深く頭を下げた。",
+        choices:[
+          {label:"講和を結ぶ", to:"end", endStatus:"戦勝講和——国境は今、静かだ",
+           fx:()=>{res.fame=Math.min(9999,res.fame+60);res.gold+=800;
+             return "🕊 賠償+800G・名声+60。国境の丘には、篝火の代わりに白薔薇が植えられた";}},
+        ]},
+      defeat:{ status:"苦い敗戦の講和を結んだ",
+        t:"折れた旗", kind:"choice",
+        txt:"力及ばず、城下の一部が焼かれた。講和の条件は重い。<br>ただ、調印の席で王女がたった一言、誰にも聞こえぬ声で囁いた。<br>「——ごめんなさい。私の国が」",
+        choices:[
+          {label:"耐えて、再建を誓う", to:"end", endStatus:"敗戦の傷を、黙々と癒している",
+           fx:()=>{res.gold=Math.max(0,res.gold-800);loseVillagers(0.05);allHomes(-8);persShift({tradition:+5});
+             return "🔨 焼け跡に、もう槌音が響き始めている。城は、これしきでは終わらない";}},
+        ]},
+      peace:{ status:"単騎の直訴が和平を結んだ",
+        t:"白薔薇の夜", kind:"choice",
+        txt:"王女の天幕に通された時、衛兵は十人がかりだった。だが文を読み終えた王女は、それを胸に当て、静かに立ち上がった。<br>「全軍に告ぐ。<b>矛を収めよ</b>。この戦は、私の名において終わりにする」<br>宰相の抗議は、王女の一瞥で凍りついた。",
+        choices:[
+          {label:"和約を結ぶ", to:"end", endStatus:"剣を抜かずに結ばれた、白薔薇の和約",
+           fx:()=>{flags.roseAlliance=true;res.fame=Math.min(9999,res.fame+40);allHomes(8);
+             return "🌹 剣を一度も抜かぬまま、二国は結ばれた。名声+40——以後、毎年春に同盟交易の実りが届く";}},
+        ]},
+    }
+  },
+  // 第四作: 謎の少年の出生の秘密 —「灰かぶりの王冠」
+  heir:{
+    name:"灰かぶりの王冠", ico:"👑", img:"img/saga-heir.jpg",
+    hero:{name:"少年テオ", role:"出自の知れぬ子", ico:"🧒", img:"img/hero-theo.jpg"},
+    start:()=>(flags.boyKept||flags.boySent)&&day>SEASON_LEN*3,
+    stages:{
+      intro:{ status:"…", resolve:()=>flags.boyKept?"grown":"letter" },
+      grown:{ status:"城で健やかに育っている",
+        t:"肩の痣と、旅の老女", kind:"choice",
+        txt:"あの少年——皆が<b>テオ</b>と呼ぶようになった——は、よく学びよく笑う子に育った。だが時折、誰も教えていない古い旋律を口ずさみ、「燃える白い塔の夢を見る」と言う。<br>ある日、市場の旅の老女がテオの肩の<b>鍵形の痣</b>を見て、腰を抜かした。<br>「……サンレーヴ。<b>滅んだ旧王家サンレーヴの聖痕</b>じゃ。生きておったのか、忘れ形見が」",
+        choices:[
+          {label:"痣のことは固く伏せる", to:"pursuers", gap:5,
+           fx:()=>{persShift({control:-4});return "🤫 老女には袋一杯の麦と、固い口止めを。だが噂とは、袋の口から零れる麦のようなもの……";}},
+          {label:"エレオノーラに紋章を調べさせる", to:"pursuers", gap:5,
+           fx:()=>{if(route)res.lore+=6;
+             return "📚 古文書が照合された。間違いない——二十年前に簒奪で滅びた旧王家、その王孫の証。"+(route?loreName()+"+6":"");}},
+        ]},
+      letter:{ status:"修道院から不穏な書状が…",
+        t:"修道院からの書状", kind:"choice",
+        txt:"かつて少年を預けた王都の修道院から、急ぎの書状が届いた。<br>「あの子の出自を探る者が、二度、院を訪ねて参りました。身なりは商人、目つきは<b>兵</b>のそれ。あの子に、何かよくないものが近づいています。<br>——どうか、お迎えを」",
+        choices:[
+          {label:"自ら引き取りに行く（-100G）", to:"grown", gap:3,
+           fx:()=>{res.gold-=100;flags.boyKept=true;
+             return "🐎 早馬を駆って三日。少年は荷台の上で「覚えていてくれたの」と笑った。城で育てよう——今度こそ";}},
+          {label:"修道院の壁を信じて任せる", to:"taken", gap:6,
+           fx:()=>{persShift({control:+4});return "⛪ 警護の金子だけを送った。院の壁は厚い。……壁は、な";}},
+        ]},
+      taken:{ status:"⚠ 少年が何者かに攫われた",
+        t:"破られた壁", kind:"choice",
+        txt:"最悪の報せが来た。夜半、修道院が破られ、<b>少年テオが攫われた</b>。残されたのは、踏み荒らされた菜園と、争った跡。<br>院長の文は震えていた。「あの子は最後まで、攫った者の顔を睨んでいたそうです」",
+        choices:[
+          {label:"騎士団を追跡に出す", to:()=>security()>=8?"saved":"trail", gap:4,
+           fx:()=>{return "⚔️ 騎士団が街道を封じ、馬蹄の跡を追う";}},
+          {label:"シルヴィアの影に追わせる", to:()=>hasRet(5)?"saved":"trail", gap:4,
+           fx:()=>{return "🎭 影が夜に溶けた。「三日ください。匂いは、まだ温かい」";}},
+        ]},
+      saved:{ status:"取り戻した——もう離さない",
+        t:"取り戻した手", kind:"choice",
+        txt:"古い水車小屋で一味は捕らえられ、テオは無事に保護された。攫った者どもは口を割らぬまま、だが持ち物から<b>現王朝の刻印</b>が出た。<br>テオは城主の袖を握って言った。「……今度は、置いていかないで」",
+        choices:[
+          {label:"城で守り育てると誓う", to:"pursuers", gap:5,
+           fx:()=>{flags.boyKept=true;allHomes(4);return "🏰 少年の部屋が、城の奥に用意された。今度こそ、ここが彼の家だ";}},
+        ]},
+      trail:{ status:"追跡は撒かれた……それでも",
+        t:"靴擦れの英雄", kind:"choice",
+        txt:"追跡は国境で撒かれ、捜索は空振りに終わった——はずだった。<br>ひと季節ののち、城門に小さな人影が現れる。靴は底が抜け、頬はこけ、それでも目だけは負けていない。<br><b>テオは、自力で逃げ出して、歩いて帰ってきた</b>。<br>「あいつら、僕が寝たふりしてる間ずっと『王の血』の話をしてた。……ねえ、僕は、何なの?」",
+        choices:[
+          {label:"よく帰った、と抱きしめる", to:"pursuers", gap:4,
+           fx:()=>{flags.boyKept=true;allHomes(8);res.fame=Math.min(9999,res.fame+8);
+             return "🫂 その夜、城の食堂は少年の好物だらけになった。名声+8——この子は、城下みんなの子になった";}},
+        ]},
+      pursuers:{ status:"⚠ 何者かが少年の身辺を探っている",
+        t:"靴音は二人ぶん", kind:"choice",
+        txt:"テオの周りに、また影が差し始めた。市場で、礼拝堂で、同じ顔を二度見る。簒奪王朝にとって、旧王家の生き残りは<b>消すべき火種</b>だ。<br>決めねばならない。この子をどう守るか。",
+        choices:[
+          {label:"城の奥深くに匿う", to:"climax", gap:4,
+           fx:()=>{persShift({control:-4});return "🕯 テオの暮らしは窓のない部屋に移った。「外、見たいな」と彼は一度だけ言った";}},
+          {label:"公に「この子は城の子だ」と宣言する", to:"climax", gap:4,
+           fx:()=>{res.fame=Math.min(9999,res.fame+10);persShift({tyranny:+3});
+             return "📯 布告が貼り出された。手を出せば城が敵に回る——名声+10。それでも来るなら、相手は本気だ";}},
+        ]},
+      climax:{ status:"⚠ 刺客が動く——その夜",
+        t:"月のない夜", kind:"choice",
+        txt:"月のない夜だった。城の犬が一斉に吠え、灯りがひとつ、またひとつ消える。<br><b>刺客は三人</b>。狙いは少年の寝所。廊下の角で、抜き身の刃が鈍く光った。",
+        choices:[
+          {label:"迎え撃て！", to:()=>(security()>=10||hasRet(5))?"revelation":"wounded", gap:3,
+           fx:()=>{return "⚔️ 城が、牙を剝いた";}},
+        ]},
+      wounded:{ status:"刺客は退けた——だが代償が",
+        t:"老騎士の背中", kind:"choice",
+        txt:"刺客は取り逃がした。だが少年は無傷だった——<b>ローランド卿が、背中で全部受けたからだ</b>。<br>「なに、掠り傷よ」と老騎士は笑うが、軍医の顔は笑っていない。テオは一晩中、その枕元を離れなかった。<br>「僕のせいだ。僕が、いるから」",
+        choices:[
+          {label:"「違う。お前がいるから、皆が戦った」", to:"revelation", gap:3,
+           fx:()=>{allHomes(4);persShift({mercy:+5});return "🛡 数日後、ローランド卿は粥を三杯平らげて軍医を呆れさせた。爺さまは、まだ死なん";}},
+        ]},
+      revelation:{ status:"少年が真実を知る時",
+        t:"灰かぶりの王冠", kind:"choice",
+        txt:"すべてを話す時が来た。滅んだ王家。聖痕。簒奪の夜に、乳母が火の中から救い出した赤子。<br>聞き終えたテオは長く黙り、それから顔を上げた。その目はもう、子どものものではなかった。<br>「僕に王冠を望む人が、どこかにいるんだね。……でも、<b>僕はどう生きるべきか、あなたの言葉が聞きたい</b>」",
+        choices:[
+          {label:"「王冠より、お前の人生を生きよ」", to:"end", endStatus:"城の書記テオとして、静かに筆を執っている",
+           fx:()=>{flags.boyScribe=true;allHomes(6);
+             return "🖋 テオは泣いて、笑った。後年、彼の手で綴られた年代記の写本は、城の宝となる——毎年秋、彼の写本が知を積み上げる";}},
+          {label:"「お前の出自と向き合え。道はお前が選べ」", to:"end", endStatus:"真実を携え、おのれの道を歩むため旅立った",
+           fx:()=>{gainItem("seal");res.fame=Math.min(9999,res.fame+30);
+             return "🌅 テオは王冠を求めず、ただ「サンレーヴ最後の子」として歴史と向き合う旅へ。形見に印章を残して。名声+30";}},
+        ]},
+    }
+  },
 };
 function sagaHero(id){return SAGAS[id]&&SAGAS[id].hero;}
 function maybeStartSagas(){
@@ -1654,7 +1894,7 @@ function showSagaStage(id,st,def,stage){
       document.getElementById("sg"+i).onclick=()=>{
         const msg=c.fx?c.fx(st):"";
         closeScroll();
-        advanceSaga(st,def,c.to,c.gap,c.endStatus);
+        advanceSaga(st,def,(typeof c.to==="function"?c.to():c.to),c.gap,c.endStatus);
         if(msg)toast(msg);
         recomputeHappiness();updateHUD();saveGame();
       };
@@ -1662,8 +1902,9 @@ function showSagaStage(id,st,def,stage){
   }
   showScroll(`
     <h2>${def.ico} ${def.name}</h2>
-    <div class="ev-speaker"><span style="font-size:20px">${h.ico}</span>
+    <div class="ev-speaker">${h.img?`<img class="ret-portrait" src="${h.img}" alt="${h.ico}" onerror="this.remove()">`:`<span style="font-size:20px">${h.ico}</span>`}
       <span>年代記サーガ ／ <b>${h.name}</b>（${h.role}）の物語</span></div>
+    ${(stage.img||def.img)?`<img class="ev-illust" src="${stage.img||def.img}" alt="" onerror="this.remove()">`:""}
     <div><b>${stage.t}</b><br>${stage.txt}</div>
     <div class="choice-btns" style="${stage.choices&&stage.choices.length>2?'flex-direction:column':''}">${btns}</div>
     <div class="center" style="margin-top:8px"><small>―― つづく ――</small></div>
@@ -1693,6 +1934,7 @@ const ITEMS={
   dragonshield:{ico:"🛡",name:"竜鱗の小盾",desc:"鱗を打ち直した盾。治安+1"},
   luckycoin: {ico:"🪙",name:"幸運の古銭",desc:"擦り切れた御守り銭。行商の実入り+10%"},
   rodmap:    {ico:"🗺",name:"ロデリックの大陸図",desc:"命懸けで描かれた大陸全図。知識/魔力の獲得+10%・名声がゆるやかに育つ"},
+  seal:      {ico:"💍",name:"サンレーヴの印章",desc:"滅びた旧王家の証。これを見た外つ国の使者は、必ず一礼する"},
 };
 function gainItem(k){
   if(inventory[k])return;
