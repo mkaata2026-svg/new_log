@@ -328,6 +328,8 @@ const ROOMS = {
             desc:"食料の貯蔵上限を+400。冬越えの命綱。"},
   mine:    {name:"鉱山",     ico:"⛰", w:3, cost:{g:1400,w:8}, rank:2, minF:F_MIN, maxF:-1,
             iron:1, workers:2, noisy:true, desc:"地下専用。鉄+1/日。武具と兵備の源。"},
+  mushroom:{name:"茸園",     ico:"🍄", w:3, cost:{g:650,w:6}, rank:0, minF:F_MIN, maxF:-1,
+            food:4, desc:"地下専用。洞窟の気候は季節知らず——冬でも食料+4。地の民の主食。"},
   garden:  {name:"庭園",     ico:"🌷", w:3, cost:{g:1500,w:4,s:6},rank:2, minF:0, maxF:F_MAX, sky:true,
             aura:5, desc:"屋根のない場所限定。周囲の住居を癒す憩いの場。"},
   monastery:{name:"修道院",  ico:"🕍", w:4, cost:{g:2000,s:12},rank:2, minF:0, maxF:F_MAX,
@@ -368,7 +370,7 @@ const ROOMS = {
 const TOOL_CATS=[
   {id:"struct",name:"🧱 構造",  tools:["corridor","stairs","lift","mlift","portal"]},
   {id:"home",  name:"🛏 住居",  tools:["quarters","bighouse","noble","royalsuite"]},
-  {id:"prod",  name:"🌾 生産",  tools:["farm","workshop","quarry","mine","blacksmith","brewery","granary"]},
+  {id:"prod",  name:"🌾 生産",  tools:["farm","mushroom","workshop","quarry","mine","blacksmith","brewery","granary"]},
   {id:"comm",  name:"🧺 商業",  tools:["market","tavern","bank","treasury","guild","alchemy","stonegen"]},
   {id:"mil",   name:"⚔ 軍事",  tools:["barracks","armory","dungeon","roost"]},
   {id:"faith", name:"⛪ 信仰",  tools:["chapel","monastery","cathedral","garden","fairyfountain"]},
@@ -420,6 +422,7 @@ let miseryStreak = 0;             // 低幸福の連続日数 (暴君の最期�
 
 const isCreative = ()=>gameMode&&gameMode.kind==="creative";
 const isScenario = ()=>gameMode&&gameMode.kind==="scenario";
+const isSpecial  = s=>gameMode&&gameMode.kind==="special"&&gameMode.special===s;
 function diffMul(){
   const d=gameMode&&gameMode.diff;
   if(d==="easy")     return {inc:1.25, raid:0.6, food:0.85};
@@ -468,7 +471,12 @@ const ENDING_DEFS={
   culture: {name:"文化の極み",   ico:"🎭", hint:"礼拝堂・酒場・貴族邸宅・学術施設を揃え芸術の都とする"},
   babel:   {name:"バベルの呪い", ico:"🗼", hint:"46階より高くへ——言葉の崩れる高みへ"},
   time:    {name:"時を超える者", ico:"⏳", hint:"50年を生き抜く"},
-  truend:  {name:"真なる年代記", ico:"📕", hint:"他のすべての結末を見届ける"},
+  saint:   {name:"聖者の凱歌",   ico:"🙏", hint:"大聖堂を擁し信仰400を積む"},
+  builder: {name:"大城主",       ico:"🏗", hint:"30種類の施設を一つの城に建てる"},
+  zenith:  {name:"天へ届きし塔", ico:"🗼", hint:"最上階(50階)に部屋を築く"},
+  tide:    {name:"潮の王",       ico:"🌊", hint:"潮の城で3年生き、人口300を養う(特殊シナリオ)"},
+  deeproot:{name:"地底王国の盟主",ico:"🏮", hint:"地下帝国で人口300を養う(特殊シナリオ)"},
+  truend:  {name:"真なる年代記", ico:"📕", hint:"特殊シナリオ以外のすべての結末を見届ける"},
 };
 const ENDING_TEXTS={
   sky:"雲を貫く城を、地上の誰もが見上げている。年代記の表紙には、こう記された——「彼は天空の支配者であった」と。",
@@ -480,6 +488,11 @@ const ENDING_TEXTS={
   culture:"歌と絵画と書物の都。武勲では覇者に並べずとも、千年後に語られるのはこの城の芸術である。",
   babel:"高みに達した朝、領民の言葉が乱れ始めた。職人は異国の言葉で叫び、詩人は誰にも読めぬ詩を書く。天に近づきすぎた塔の、これが代償である。",
   time:"50回目の春。最初の領民はもういないが、その孫たちが同じ丘で麦を蒔く。そなたは、時を超えた。",
+  saint:"大聖堂の鐘が鳴ると、大陸の果ての村でも人々が手を止めて祈るという。剣でも金貨でもなく、祈りがこの城を不滅にした。",
+  builder:"工房も聖堂も牢も茸園も——人の営みのすべてが、この一つの城壁の内にある。建築とは、世界の縮図を造ることだ。",
+  zenith:"五十階。鳥さえ越えぬ高みの窓辺で、そなたは下界の雲を見おろしている。石を積むことを夢見た者の、これが到達点である。",
+  tide:"潮は一日二度、城を島に変える。だが領民は笑う。「海が城門の鍵なのです。神様が朝晩、かけ忘れずにね」",
+  deeproot:"日の光を知らぬ子らが、水晶の灯の下で歌っている。地上の王たちは知らない——彼らの足の下に、もう一つの王国があることを。",
   truend:"すべての結末を見届けた者よ。年代記は完結した——だが城の灯は、これからも領民とともに灯り続ける。",
 };
 
@@ -628,6 +641,39 @@ function recomputeHappiness(){
   }
 }
 
+// ---------- 階級システム (仕様書§2: 農民/職人/商人/貴族/聖職者/騎士/冒険者) ----------
+const CLASS_DEFS=[
+  ["peasant",  "🌾","農民",    "基礎労働力。城の土台"],
+  ["artisan",  "🔨","職人",    "10人以上: 工房・鍛冶屋の稼ぎ+5%"],
+  ["merchant", "🧺","商人",    "10人以上: 商い全体+5%"],
+  ["noble",    "🎩","貴族",    "8人以上: 名声+1/日"],
+  ["clergy",   "📿","聖職者",  "6人以上: 信仰+1/日"],
+  ["knight",   "🛡","騎士",    "8人以上: 治安+1"],
+  ["adventurer","🗡","冒険者", "6人以上: ギルド収入+30G/日 (幻想の道)"],
+];
+function classBreakdown(){
+  const cls={peasant:0,artisan:0,merchant:0,noble:0,clergy:0,knight:0,adventurer:0};
+  for(const id in rooms){
+    const r=rooms[id],d=ROOMS[r.type];if(!d)continue;
+    if(d.pop){
+      if(r.type==="barracks")cls.knight+=r.occ;
+      else if(r.type==="noble"||r.type==="royalsuite")cls.noble+=r.occ;
+      else cls.peasant+=r.occ;
+    }
+    if(d.workers&&r.active){
+      if(["workshop","quarry","mine","blacksmith","brewery"].includes(r.type))cls.artisan+=d.workers;
+      else if(r.type==="guild")cls.adventurer+=d.workers;
+      else cls.merchant+=d.workers;          // 市場・酒場など
+    }
+    if(r.active){                            // 聖職者は祈りの場に住まう (人口外の派生階級)
+      if(r.type==="chapel")cls.clergy+=2;
+      else if(r.type==="monastery")cls.clergy+=3;
+      else if(r.type==="cathedral")cls.clergy+=5;
+    }
+  }
+  return cls;
+}
+
 // ---------- 人口・治安 ----------
 function population(){
   let p=0;
@@ -647,6 +693,7 @@ function security(){
   if(route==="real"&&milestones.m3)s+=3; // 火薬
   if(flags.mercUntil&&day<=flags.mercUntil)s+=5; // 傭兵団
   if(persType()==="tyrant")s+=2;      // 恐怖は秩序を生む
+  if(classBreakdown().knight>=8)s+=1; // 騎士階級の厚み
   return s;
 }
 
@@ -655,11 +702,20 @@ function dailyTick(){
   let income=0,expense=0;
   const pop=population();
   const sIdx=seasonIdx(), season=SEASONS[sIdx];
-  // 商いの勢い = 人口 × 季節 × 時代 × 名声
+  const cls=classBreakdown();
+  // 商いの勢い = 人口 × 季節 × 時代 × 名声 × 商人階級
   const commerceF=clamp(pop/45,0.3,1.8)*(sIdx===3?0.85:1)
-    *ERAS[era].mul*(1+Math.min(0.3,res.fame/600));
+    *ERAS[era].mul*(1+Math.min(0.3,res.fame/600))*(cls.merchant>=10?1.05:1);
   const rentMul=countType("taxoffice")>=1?1.15:1;                       // 税務署
-  const craftMul=(flags.guildCharter?1.2:1)*(countType("guildhall")>=1?1.25:1); // ギルド
+  const craftMul=(flags.guildCharter?1.2:1)*(countType("guildhall")>=1?1.25:1)
+    *(cls.artisan>=10?1.05:1);                                          // ギルド・職人階級
+  // モン・サン=ミッシェル: 潮汐 (6日周期。満潮=地上1階の商い・畑が休業、引き潮=浜の恵み)
+  const tideHigh=isSpecial("mont")&&day%6===0;
+  if(tideHigh)toast("🌊 満潮——城は海に抱かれた。地上1階の商いと畑は今日休みだ","bad");
+  else if(isSpecial("mont")&&day%6===3){
+    res.food=Math.min(foodCap(),res.food+8);
+    toast("🦪 引き潮の浜で貝と海藻が採れた。食料+8");
+  }
   let loreMul=hasRet(3)
     ?(retEvo[3]==="sage"?1.5:retEvo[3]==="witch"?(route==="fantasy"?1.6:1.4):1.25)
     :1;
@@ -676,17 +732,19 @@ function dailyTick(){
       if(pt==="father"&&r.happy>=60&&r.occ<d.pop&&Math.random()<.35)r.occ++; // 人民の父: 移住者増
       r.occ=clamp(r.occ,0,d.pop);
     }
+    if(tideHigh&&r.f===0&&(d.base||d.food)){if(d.upkeep)expense+=d.upkeep;continue;} // 満潮休業
     if(d.rent)income+=d.rent*r.occ*(r.happy/100+.3)*rentMul;
     if(d.base)income+=d.base*commerceF*(0.5+r.happy/150)
       *(pt==="merchant"?1.18:1)
       *((r.type==="workshop"||r.type==="blacksmith")?craftMul:1);
-    if(d.quest)income+=rnd(40,140)-d.base*commerceF*0.3; // ギルドはクエスト変動分を上乗せ
+    if(d.quest)income+=rnd(40,140)-d.base*commerceF*0.3+(cls.adventurer>=6?30:0); // クエスト変動+冒険者階級
     if(d.justice)income+=pop*0.3;                        // 裁判所: 司法収入
     if(d.upkeep)expense+=d.upkeep;
-    if(d.food)foodGain+=d.food*season.farm*(faithTier()>=1?1.15:1); // 収穫の祈り
+    // 茸園は洞窟気候ゆえ季節を問わない。畑は季節×収穫の祈り
+    if(d.food)foodGain+=d.food*(r.type==="mushroom"?1:season.farm*(faithTier()>=1?1.15:1));
     if(d.wood)res.wood=Math.min(999,res.wood+d.wood);
     if(d.stone)res.stone=Math.min(999,res.stone+d.stone);
-    if(d.iron)res.iron=Math.min(999,res.iron+d.iron);
+    if(d.iron)res.iron=Math.min(999,res.iron+d.iron+(flags.underAlly&&r.type==="mine"?1:0)); // 地底の盟約
     if(d.faith)res.faith=Math.min(999,res.faith+d.faith);
     if(d.fame)res.fame=Math.min(9999,res.fame+d.fame);
     if(d.lore){
@@ -700,6 +758,8 @@ function dailyTick(){
     if(r.type==="skyhall")income+=pop*0.4;
   }
   if(route==="fantasy"&&milestones.m3)income+=120;  // 賢者の石
+  if(cls.clergy>=6)res.faith=Math.min(999,res.faith+1);   // 聖職者階級
+  if(cls.noble>=8)res.fame=Math.min(9999,res.fame+1);     // 貴族階級
 
   // 食料 (穀物庫で上限拡張)
   res.food=Math.min(foodCap(),res.food+foodGain);
@@ -788,9 +848,9 @@ function unlockEnding(k){
   if(endings[k])return;
   endings[k]=true;
   showEndingScroll(k);
-  // true END: 他のすべてを見届けたか
+  // true END: 特殊シナリオ限定(潮の王/地底王国)以外のすべてを見届けたか
   if(!endings.truend){
-    const rest=Object.keys(ENDING_DEFS).filter(x=>x!=="truend");
+    const rest=Object.keys(ENDING_DEFS).filter(x=>x!=="truend"&&x!=="tide"&&x!=="deeproot");
     if(rest.every(x=>endings[x]))setTimeout(()=>unlockEnding("truend"),800);
   }
   saveGame();
@@ -828,6 +888,18 @@ function checkEndings(pop){
   }
   // バベルの呪い: 46階(f>=45)より高くに部屋を築く
   if(!endings.babel)for(const id in rooms)if(rooms[id].f>=45){unlockEnding("babel");break;}
+  // 天へ届きし塔: 最上階(50階)
+  if(!endings.zenith)for(const id in rooms)if(rooms[id].f>=F_MAX){unlockEnding("zenith");break;}
+  // 聖者の凱歌
+  if(res.faith>=400&&countType("cathedral")>=1)unlockEnding("saint");
+  // 大城主: 30種類の施設
+  if(!endings.builder){
+    const kinds=new Set(Object.values(rooms).map(r=>r.type));kinds.delete("gate");
+    if(kinds.size>=30)unlockEnding("builder");
+  }
+  // 特殊シナリオの覇業
+  if(isSpecial("mont")&&yearNum()>=3&&pop>=300)unlockEnding("tide");
+  if(isSpecial("under")&&pop>=300)unlockEnding("deeproot");
   // 神になる: 専用イベントで提示 (showGodEvent)
   if(!endings.god&&!flags.godAsked&&route==="fantasy"&&skyBuilt&&res.lore>=400&&!modalOpen)showGodEvent();
 }
@@ -1245,6 +1317,13 @@ const EVENTS=[
       return "🗺 地図はこの城の真下——古井戸の奥を指している。連鎖の物語『失われた王冠』が始まった";}},
    b:{label:"眉唾と断る",wv:{realism:+2},
       fx:()=>{return "🚪 行商人は肩をすくめた。「では、別の城の殿様に」";}}},
+  {id:"deeplights",t:"坑道の灯",ico:"🏮",cond:()=>countBasement()>=5&&!chains.underworld,
+   txt:"夜勤の坑夫が震えながら報告に来た。「最深部の闇の奥に……青い灯が、列をなして動いておりました」",
+   a:{label:"監視所を設ける（-100G）",wv:{fantasy:+4},
+      fx:()=>{res.gold-=100;chains.underworld={stage:0,nextDay:day+3};
+      return "🏮 監視が始まった。連鎖の物語『地下帝国との遭遇』が始まった";}},
+   b:{label:"坑道を一部封鎖する",ps:{control:-3},wv:{realism:+2},
+      fx:()=>{return "🧱 灯の区画は壁で封じた。坑夫たちは安堵したが、壁の向こうの気配は消えない…";}}},
   {id:"sealbook",t:"封印の書",ico:"📖",cond:()=>route==="fantasy"&&countType("magetower")>=1&&!chains.seals,
    txt:"魔法塔の書庫整理で、鎖に巻かれた黒い書物が見つかった。表紙に七つの封蝋——うち一つが、今まさに崩れた。",
    a:{label:"塔で管理し、研究する",wv:{fantasy:+6},
@@ -1276,6 +1355,32 @@ const CHAIN_DEFS={
         res.gold+=600;allHomes(6);return "👑 王座の間なき今は宝物庫へ。見物料で+600G。いつか玉座の上に——物語『失われた王冠』完結";}},
      b:{label:"王都に献上する",end:true,fx:s=>{res.gold+=1000;allHomes(5);
         return "🤝 王はいたく感激し、返礼1000Gと「王冠の発見者」の名誉を賜った——物語『失われた王冠』完結";}}},
+  ]},
+  underworld:{name:"地下帝国との遭遇",ico:"🏮",stages:[
+    {t:"第一夜　動く灯",txt:"監視所からの報せ——青い灯は等間隔で進み、岩壁の中へ消えていく。よく見れば、岩壁には精緻すぎる継ぎ目があった。扉だ。",
+     a:{label:"継ぎ目を調べさせる",fx:s=>{return "🚪 扉は内側からしか開かぬ造り。だが監視中の坑夫が、向こう側から「こちらを覗く小さな目」を見たという";}},
+     b:{label:"今は手を出さない",wait:true,fx:s=>"🏮 監視だけを続けた。灯の列は夜ごと、少しずつ増えている"}},
+    {t:"第二夜　小さな取引",txt:"朝、監視所の前に磨かれた鉄塊が積まれていた。傍らに、こちらの坑夫が置き忘れた手斧——研ぎ直されて返されている。取引の申し出だ。",
+     a:{label:"お返しにパンと麦酒を置く（-食料5）",fx:s=>{res.food=Math.max(0,res.food-5);res.iron=Math.min(999,res.iron+8);
+        return "🍞 翌朝、倍の鉄塊が置かれていた。鉄+8。岩の向こうから、小さな笑い声がした……気がする";}},
+     b:{label:"鉄塊だけ頂いておく",fx:s=>{res.iron=Math.min(999,res.iron+5);persShift({greed:-4});
+        return "⚙️ 鉄+5。だが翌朝から贈り物は途絶えた。礼を欠いたか……";}}},
+    {t:"第三夜　地底人の使者",txt:"岩の扉が初めて開いた。背丈半分ほどの、水晶の杖を持つ老人が立っている。古い古い言葉で、何かを告げようとしている。",
+     a:{label:"賓客として迎える（-100G）",fx:s=>{res.gold-=100;
+        if(hasRet(3))return "📚 エレオノーラが古語を解した。「彼らは『深きカルン=ドゥムの民』。地上との交易を望んでいます」";
+        return "🤝 言葉は通じずとも、酒杯は通じた。使者は満足げに岩の奥へ帰っていった";}},
+     b:{label:"武装して応対する",fx:s=>{persShift({mercy:-3});
+        return "⚔️ 使者は悲しげに杖を鳴らし、一礼して扉を閉じた。数日後、扉はまた開いた——彼らは辛抱強い";}}},
+    {t:"第四夜　地底市場",txt:"扉の奥に招かれた。水晶の灯に照らされた大空洞——そこは市場だった。見たこともない鉱石と茸が山と積まれている。",
+     a:{label:"鉄と宝石を買い付ける（-300G）",fx:s=>{res.gold-=300;res.iron=Math.min(999,res.iron+20);
+        if(route)res.lore+=5;return "⚙️ 鉄+20"+(route?"・"+loreName()+"+5":"")+"。彼らの精錬技術は地上の百年先を行く";}},
+     b:{label:"石材と食料を交換する（石-10）",fx:s=>{res.stone=Math.max(0,res.stone-10);res.food=Math.min(foodCap(),res.food+40);
+        return "🍄 地底茸と岩塩漬けの肉を得た。食料+40。地の底の飯は、存外うまい";}}},
+    {t:"最終夜　地底皇帝との謁見",txt:"大空洞の最奥、水晶の玉座に地底皇帝が座している。「地上の城主よ。我らと盟を結ぶか、それとも良き隣人のままでいるか」",
+     a:{label:"盟約を結ぶ",end:true,fx:s=>{flags.underAlly=true;res.iron=Math.min(999,res.iron+15);
+        return "🤝 地底との盟約成る！ 鉱山の産出+1/日・鉄+15。地の底に、頼もしき友を得た——物語『地下帝国との遭遇』完結";}},
+     b:{label:"良き隣人として礼を尽くす",end:true,fx:s=>{res.gold+=800;res.iron=Math.min(999,res.iron+15);
+        return "🎁 皇帝は笑い、別れの品に宝石と鉄をくれた。+800G・鉄+15。「扉はいつでも開いている」——物語『地下帝国との遭遇』完結";}}},
   ]},
   seals:{name:"七つの封印",ico:"📖",stages:[
     {t:"第二の封印　囁く頁",txt:"夜半、書が独りでに開き、頁が囁き始めた。「読み手よ。我らは鍵にして扉」二つ目の封蝋が崩れる。",
@@ -1500,6 +1605,8 @@ function canPlace(type,c,f){
   }else if(d.route&&route&&route!==d.route)return{ok:false,why:"選ばなかった道の施設"};
   if(route==="real"&&f>REAL_FCAP&&!isCreative())
     return{ok:false,why:"史実の道は30階まで（石積みの限界）"};
+  if(isSpecial("under")&&f>0&&!isCreative())
+    return{ok:false,why:"地下帝国——地上に築くことは許されぬ"};
   const minF=(type==="skyhall")?skyMinF():d.minF;
   if(f<minF||f>d.maxF){
     if(minF<0&&d.maxF<0)return{ok:false,why:"地下専用"};
@@ -1792,6 +1899,16 @@ function draw(){
 
   // --- 城（部屋） ---
   for(const id in rooms)drawRoom(rooms[id],night,sIdx);
+
+  // --- 潮の城: 満潮の海 ---
+  if(isSpecial("mont")&&day%6===0){
+    const wy=floorTopY(0)+4;
+    ctx.fillStyle="rgba(50,110,190,.42)";
+    ctx.fillRect(cam.x,wy,W,TILE+8);
+    ctx.fillStyle="rgba(220,240,255,.5)";
+    for(let x=Math.floor(cam.x/26)*26;x<cam.x+W;x+=26)
+      ctx.fillRect(x+((perfNow*.02)%26),wy+Math.sin(x*.2+perfNow*.003)*2,12,2);
+  }
 
   // --- 胸壁＋雪 ---
   drawBattlements(night,winter);
@@ -2580,13 +2697,26 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
       ?`${e.ico} <b>${e.name}</b><br>`
       :`<span style="color:#9a8458">❔ ${e.hint}</span><br>`;
   }
+  // 領民の階級
+  const cls=classBreakdown();
+  let clsHtml="";
+  for(const [k,ico,nm,dsc] of CLASS_DEFS){
+    if(k==="adventurer"&&route!=="fantasy")continue;
+    clsHtml+=`${ico} ${nm} <b>${cls[k]}</b>人　<small style="color:#9a8458">${dsc}</small><br>`;
+  }
   // モードと章目標
-  const modeName=isCreative()?"🎨 クリエイティブ":isScenario()?"📯 シナリオ「王国の興亡」":"♾ エンドレス（"+({easy:"やさしい",normal:"ふつう",hard:"むずかしい",nightmare:"悪夢"}[gameMode&&gameMode.diff]||"ふつう")+"）";
+  const modeName=isCreative()?"🎨 クリエイティブ"
+    :isScenario()?"📯 シナリオ「王国の興亡」"
+    :(gameMode&&gameMode.kind==="special")?({mont:"🌊 特殊シナリオ: 潮の城",babel:"🗼 特殊シナリオ: バベルの塔",under:"⛏ 特殊シナリオ: 地下帝国"}[gameMode.special]||"🏔 特殊シナリオ")
+    :"♾ エンドレス（"+({easy:"やさしい",normal:"ふつう",hard:"むずかしい",nightmare:"悪夢"}[gameMode&&gameMode.diff]||"ふつう")+"）";
+  const SPECIAL_GOALS={mont:"3年生存・人口300で『潮の王』",babel:"最上階(50階)に部屋を築き『天へ届きし塔』",under:"地下だけで人口300を養い『地底王国の盟主』"};
   const scenHtml=isScenario()
     ?(scenarioCh<=5
       ?`<div class="chapter" style="margin:8px 0 0"><b>📯 ${SCENARIO_CH[scenarioCh].t}</b>目標：${SCENARIO_CH[scenarioCh].goal}</div>`
       :`<div class="chapter" style="margin:8px 0 0"><b>🏆 シナリオ完結</b>この先は自由な治世である。</div>`)
-    :"";
+    :(gameMode&&gameMode.kind==="special")
+      ?`<div class="chapter" style="margin:8px 0 0"><b>${modeName}</b>目標：${SPECIAL_GOALS[gameMode.special]||""}</div>`
+      :"";
   showScroll(`
     <h2>城主の心得</h2>
     <div style="font-size:12px;color:#6e5b39">${modeName}</div>${scenHtml}
@@ -2603,6 +2733,8 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     <hr>
     <div style="font-size:12px"><b>${pt.ico} 領主の性格：${pt.name}</b><br><small>${pt.desc}</small>${persHtml}
     <div style="margin-top:4px">${wvHtml}</div></div>
+    <hr>
+    <div class="retainer-list"><b>領民の階級（計${fmt(population())}人）：</b><br>${clsHtml}</div>
     <hr>
     <div class="retainer-list"><b>家臣団：</b><br>${retHtml}</div>
     <hr>
@@ -2760,12 +2892,27 @@ function showModeSelect(){
     <div class="choice-btns" style="flex-direction:column">
       <button id="mdScen">📯 シナリオ「王国の興亡」<br><small>全5章。十字軍・黒死病・百年戦争を章目標と共に駆け抜ける正史</small></button>
       <button id="mdEnd" class="alt">♾ エンドレス<br><small>目標は自らの心に。難易度を選んで自由に築く</small></button>
+      <button id="mdSpec" style="background:#3f5e8c">🏔 特殊シナリオ<br><small>潮の城モン・サン=ミッシェル／バベルの塔／地下帝国</small></button>
       <button id="mdCre" style="background:#5e7252">🎨 クリエイティブ<br><small>資源無限・全施設解禁。理想の城を心ゆくまで（結末の記録は残らない）</small></button>
     </div>
   `);
   document.getElementById("mdScen").onclick=()=>startNewGame("scenario","normal");
   document.getElementById("mdEnd").onclick=()=>showDiffSelect();
+  document.getElementById("mdSpec").onclick=()=>showSpecialSelect();
   document.getElementById("mdCre").onclick=()=>startNewGame("creative","normal");
+}
+function showSpecialSelect(){
+  showScroll(`
+    <h2>🏔 特殊シナリオ</h2>
+    <div class="choice-btns" style="flex-direction:column">
+      <button id="spMont" style="background:#2e6e8e">🌊 潮の城 モン・サン=ミッシェル<br><small>6日周期の潮汐。満潮の日は地上1階の商いと畑が海に沈む。<br>目標: 3年生き延び、人口300を養う</small></button>
+      <button id="spBabel" class="alt">🗼 バベルの塔<br><small>幻想の道で開始。ただひたすらに、天を目指せ。<br>目標: 最上階(50階)に部屋を築く</small></button>
+      <button id="spUnder" style="background:#4a3a5e">⛏ 地下帝国<br><small>地上に建てることは許されない。🍄茸園を主食に地の底へ。<br>目標: 地下だけで人口300を養う</small></button>
+    </div>
+  `);
+  document.getElementById("spMont").onclick=()=>startNewGame("special","normal","mont");
+  document.getElementById("spBabel").onclick=()=>startNewGame("special","normal","babel");
+  document.getElementById("spUnder").onclick=()=>startNewGame("special","normal","under");
 }
 function showDiffSelect(){
   showScroll(`
@@ -2782,14 +2929,27 @@ function showDiffSelect(){
   document.getElementById("dfH").onclick=()=>startNewGame("endless","hard");
   document.getElementById("dfX").onclick=()=>startNewGame("endless","nightmare");
 }
-function startNewGame(kind,diff){
+function startNewGame(kind,diff,special){
   gameMode={kind,diff};
+  if(special)gameMode.special=special;
   if(kind==="creative"){res={gold:999999,food:2000,wood:999,stone:999,lore:0,iron:999,faith:0,fame:0};}
   else if(diff==="easy"){res={gold:8000,food:150,wood:90,stone:50,lore:0,iron:10,faith:0,fame:0};}
   else if(diff==="hard"){res={gold:3500,food:60,wood:60,stone:25,lore:0,iron:0,faith:0,fame:0};}
   else if(diff==="nightmare"){res={gold:2500,food:50,wood:50,stone:20,lore:0,iron:0,faith:0,fame:0};}
+  // 特殊シナリオの初期条件
+  let specHtml="";
+  if(special==="babel"){
+    route="fantasy";sageShown=true;worldView.fantasy=85;res.lore=30;
+    specHtml=`<hr><div class="chapter"><b>🗼 バベルの塔</b>「さあ、天に届く塔を建てよう」——煉瓦と瀝青を手に、人々は丘に集った。幻想の道はすでに開かれている。<br><br>目標：最上階(50階)に部屋を築く</div>`;
+  }else if(special==="mont"){
+    res.food+=40;
+    specHtml=`<hr><div class="chapter"><b>🌊 潮の城</b>この丘は一日にして島となり、また陸へ戻る。満潮(6日ごと)には地上1階の商いと畑が休み、引き潮の浜は恵みをくれる。階上に商いを移す知恵が試される。<br><br>目標：3年生存・人口300</div>`;
+  }else if(special==="under"){
+    res.stone+=30;res.wood+=20;
+    specHtml=`<hr><div class="chapter"><b>⛏ 地下帝国</b>地上は戦乱で焼かれた。生きる場所は、地の底にしかない。地上に建てることは許されぬ——🍄茸園(冬も実る)と⛏石切場で、深く、深く。<br><br>目標：地下だけで人口300</div>`;
+  }
   updateToolbar();updateHUD();
-  const scen=kind==="scenario"?`<hr><div class="chapter"><b>📯 ${SCENARIO_CH[1].t}</b>${SCENARIO_CH[1].open}<br><br>目標：${SCENARIO_CH[1].goal}</div>`:"";
+  const scen=kind==="scenario"?`<hr><div class="chapter"><b>📯 ${SCENARIO_CH[1].t}</b>${SCENARIO_CH[1].open}<br><br>目標：${SCENARIO_CH[1].goal}</div>`:specHtml;
   const cre=kind==="creative"?`<hr><div class="center"><small>🎨 クリエイティブ：金貨・資材・食料は尽きず、全施設が最初から建てられる</small></div>`:"";
   showScroll(`
     <h2>領地拝領の証</h2>
