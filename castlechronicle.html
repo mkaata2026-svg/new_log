@@ -2331,22 +2331,31 @@ function findPath(c0,f0,c1,f1){
 function agentTick(dt){
   const isDay=dayT>0.05&&dayT<0.66;
   const evening=dayT>0.42&&dayT<0.72;
+  const lateNight=dayT>0.80||dayT<0.05;          // 草木も眠る丑三つ時
   const season=SEASONS[seasonIdx()];
   const visitMul=(season.visit)*((route==="fantasy"&&milestones.m1&&!isDay)?1.6:1)
     *(weather.kind==="storm"?0.5:weather.kind==="rain"?0.75:1);
   // 群衆スポーン
   const shops=Object.values(rooms).filter(r=>r.active&&ROOMS[r.type]&&ROOMS[r.type].base);
+  const taverns=shops.filter(s=>s.type==="tavern");
   const homes=Object.values(rooms).filter(r=>r.active&&(r.type==="quarters"||r.type==="bighouse")&&r.occ>0);
   const pop=population();
-  const crowd=clamp(3+shops.length*2.4+pop*0.32,3,AGENT_CAP*0.9);
-  if((shops.length||homes.length)&&agents.length<crowd&&Math.random()<dt*(isDay?2.2:1.1)*visitMul){
-    const burst=1+Math.floor(Math.random()*3);
+  // 夜は人通りが激減。深夜は酒場の灯だけが起きている
+  const spawnRate=isDay?2.2:(lateNight?(taverns.length?0.5:0):0.9);
+  const crowd=clamp(3+shops.length*2.4+pop*0.32,3,AGENT_CAP*0.9)
+    *(isDay?1:lateNight?0.18:0.5);              // 夜は同時に出歩く人数の上限も絞る
+  if((shops.length||homes.length)&&agents.length<crowd&&Math.random()<dt*spawnRate*visitMul){
+    const burst=isDay?1+Math.floor(Math.random()*3):1;
     for(let n=0;n<burst;n++){
-      let pool=shops;
-      if(!isDay){const tv=shops.filter(s=>s.type==="tavern");if(tv.length&&Math.random()<.7)pool=tv;}
-      if(evening&&homes.length&&Math.random()<.45)pool=homes;
-      if(!pool||!pool.length)pool=shops.length?shops:homes;
-      if(pool.length)spawnAgent("visitor",pool[Math.floor(Math.random()*pool.length)]);
+      let pool;
+      if(isDay){
+        pool=shops;
+        if(evening&&homes.length&&Math.random()<.45)pool=homes;   // 夕暮れは家路につく
+      }else{
+        // 夜に開いているのは酒場だけ。無ければ誰も出歩かない
+        pool=taverns.length?taverns:null;
+      }
+      if(pool&&pool.length)spawnAgent("visitor",pool[Math.floor(Math.random()*pool.length)]);
     }
   }
   // 騎士の巡回
@@ -2358,6 +2367,8 @@ function agentTick(dt){
     const a=agents[i];
     if(a.wait>0){a.wait-=dt;
       const rr=rooms[a.target];
+      // 深夜は酒場の客以外は早々に切り上げて家路へ（町が夜は静まる）
+      if(a.kind==="visitor"&&lateNight&&!(rr&&rr.type==="tavern"))a.wait=Math.min(a.wait,dt*3);
       // 座る・祈る・飲む系の部屋では落ち着いて滞在（横滑りしない）
       const settled=rr&&["tavern","chapel","monastery","cathedral","quarters",
         "bighouse","noble","royalsuite","university","magetower"].includes(rr.type);
