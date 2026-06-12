@@ -2039,11 +2039,25 @@ function draw(){
   const cx=cam.x+W*(0.1+0.8*arcT);
   const cy=GROUND_Y-120-Math.sin(arcT*Math.PI)*Math.max(120,(GROUND_Y-cam.y-180));
   if(dayT<0.5){
+    glowCirc(cx,cy,52,"255,230,150",.35);
     ctx.fillStyle="#ffe9a0";ctx.beginPath();ctx.arc(cx,cy,22,0,7);ctx.fill();
-    ctx.fillStyle="rgba(255,233,160,.25)";ctx.beginPath();ctx.arc(cx,cy,38,0,7);ctx.fill();
   }else{
+    glowCirc(cx,cy,34,"220,225,240",.22);
     ctx.fillStyle="#e8e6da";ctx.beginPath();ctx.arc(cx,cy,17,0,7);ctx.fill();
     ctx.fillStyle=`rgb(${top.join(",")})`;ctx.beginPath();ctx.arc(cx+7,cy-4,15,0,7);ctx.fill();
+  }
+  // 昼は鳥の群れが空を渡る
+  if(!night&&dayT>0.06&&dayT<0.45){
+    ctx.strokeStyle="rgba(45,45,58,.65)";ctx.lineWidth=1;
+    for(let b=0;b<4;b++){
+      const p=((perfNow*.000016*(10+b*4))+b*.31)%1.2;
+      if(p>1)continue;
+      const bx2=cam.x+p*W, by2=cam.y+55+b*34+Math.sin(perfNow*.003+b*2)*5;
+      const flp=Math.abs(Math.sin(perfNow*.014+b*1.8))*2.6;
+      ctx.beginPath();
+      ctx.moveTo(bx2-3.4,by2-flp);ctx.quadraticCurveTo(bx2,by2+1.2,bx2,by2);
+      ctx.quadraticCurveTo(bx2,by2+1.2,bx2+3.4,by2-flp);ctx.stroke();
+    }
   }
   ctx.fillStyle=night?"rgba(60,65,95,.55)":"rgba(255,255,255,.75)";
   for(const cl of clouds){
@@ -2069,10 +2083,20 @@ function draw(){
   }
   ctx.lineTo(cam.x+W,GROUND_Y);ctx.closePath();ctx.fill();
 
-  // --- 大地 ---
+  // --- 大地 (表土の帯 + 草むら + 深くなるほど暗い土) ---
   ctx.fillStyle=night?(winter?"#5e656e":"#241a10"):SEASONS[sIdx].ground;
   ctx.fillRect(cam.x,GROUND_Y,W,5);
-  ctx.fillStyle=night?"#19120b":"#3b2c1d";
+  if(!winter){                                         // 草の穂がそよぐ
+    ctx.strokeStyle=night?"rgba(40,60,30,.8)":"rgba(60,100,45,.9)";
+    for(let gx2=Math.floor(cam.x/9)*9;gx2<cam.x+W;gx2+=9){
+      const sway=Math.sin(perfNow*.002+gx2*.7)*1.2;
+      ctx.beginPath();ctx.moveTo(gx2,GROUND_Y+1);ctx.lineTo(gx2+sway,GROUND_Y-3);ctx.stroke();
+    }
+  }
+  const gSoil=ctx.createLinearGradient(0,GROUND_Y+5,0,GROUND_Y+220);
+  if(night){gSoil.addColorStop(0,"#1d150d");gSoil.addColorStop(1,"#0e0a06");}
+  else{gSoil.addColorStop(0,"#42301f");gSoil.addColorStop(1,"#241a10");}
+  ctx.fillStyle=gSoil;
   ctx.fillRect(cam.x,GROUND_Y+5,W,WORLD_H-GROUND_Y);
   ctx.fillStyle="rgba(0,0,0,.18)";
   for(let x=Math.floor(cam.x/40)*40;x<cam.x+W;x+=40)
@@ -2195,8 +2219,9 @@ function figureBody(px,footY,o){
     ctx.fillStyle=col;ctx.fillRect(px-3,footY-2,6,1.6); // 膝
     return;
   }
-  // 立つ／歩く／働く／読む
-  const head=footY-11;
+  // 立つ／歩く／働く／読む (立ち姿は静かに呼吸する)
+  const breathe=(o.pose==="stand"||!o.pose)?Math.sin(tm*.003+(o.seed||0)*1.7)*.5:0;
+  const head=footY-11+breathe;
   if(o.cape){                                        // マント (貴族など)
     ctx.fillStyle=o.cape;
     ctx.fillRect(px-3.4,head+3,2,6.5);
@@ -2261,14 +2286,43 @@ function pickLook(){
   for(const l of pool){roll-=l.w;if(roll<=0)return l;}
   return pool[0];
 }
+// ===== 質感ヘルパー (掟其の一: グラデ・グロー・角丸) =====
+// 角丸長方形パス
+function rrect(x,y,w,h,rad){
+  rad=Math.min(rad,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rad,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rad);ctx.arcTo(x+w,y+h,x,y+h,rad);
+  ctx.arcTo(x,y+h,x,y,rad);ctx.arcTo(x,y,x+w,y,rad);
+  ctx.closePath();
+}
+// 放射グラデの光彩 (魔法・灯り・宝物のグロウ)
+function glowCirc(gx,gy,rad,rgb,alpha){
+  const g=ctx.createRadialGradient(gx,gy,0,gx,gy,rad);
+  g.addColorStop(0,`rgba(${rgb},${alpha})`);
+  g.addColorStop(.55,`rgba(${rgb},${alpha*.45})`);
+  g.addColorStop(1,`rgba(${rgb},0)`);
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(gx,gy,rad,0,7);ctx.fill();
+}
+// 煙突の煙 (ゆらゆら立ち上って薄れる)
+function smokePuffs(sx,sy,seed){
+  for(let k=0;k<3;k++){
+    const p=((perfNow*.00045)+k*.34+(seed%7)*.13)%1;
+    const a=.26*(1-p);
+    ctx.fillStyle=`rgba(205,205,210,${a})`;
+    ctx.beginPath();
+    ctx.arc(sx+Math.sin(p*5+seed)*3.2,sy-p*15,1.4+p*3,0,7);
+    ctx.fill();
+  }
+}
 // 壁掛けランプ／燭台。夜は炎が揺れ、温かい光輪を落とす
 function lamp(lx,ly,lit,seed){
   seed=seed||0;
   ctx.fillStyle="#3a2a16";ctx.fillRect(lx-1,ly,2,4);            // 受け金具
   if(lit){
     const fl=.6+.4*Math.sin(perfNow*.012+seed*2.3);
-    ctx.fillStyle=`rgba(255,180,70,${.16*fl})`;                 // 光輪
-    ctx.beginPath();ctx.arc(lx,ly+1,7+fl*2,0,7);ctx.fill();
+    glowCirc(lx,ly,8+fl*2.5,"255,180,70",.30*fl+.12);           // 光輪
     ctx.fillStyle=`rgba(255,150,40,${.55+.35*fl})`;             // 炎
     ctx.beginPath();ctx.moveTo(lx-1.4,ly+1);ctx.quadraticCurveTo(lx,ly-4-fl*2,lx+1.4,ly+1);ctx.closePath();ctx.fill();
     ctx.fillStyle=`rgba(255,240,180,${.8})`;ctx.fillRect(lx-.6,ly-1,1.2,2);
@@ -2331,16 +2385,38 @@ function drawDwelling(r,x,y,w,h,night,o){
 function drawRoom(r,night,sIdx){
   const hh=r.hh||1;
   const x=r.c*TILE,y=floorTopY(r.f+hh-1),w=r.w*TILE,h=hh*TILE;
-  let base=r.f<0?"#4f463c":"#7b746a";
-  ctx.fillStyle=base;ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle="rgba(0,0,0,.18)";ctx.lineWidth=1;
+  // 壁: ベタ塗りではなく上が明るい縦グラデ (掟其の一)
+  const gWall=ctx.createLinearGradient(0,y,0,y+h);
+  if(r.f<0){gWall.addColorStop(0,"#5a5044");gWall.addColorStop(1,"#443b31");}
+  else{gWall.addColorStop(0,"#8d8579");gWall.addColorStop(.55,"#7b746a");gWall.addColorStop(1,"#6c655b");}
+  ctx.fillStyle=gWall;ctx.fillRect(x,y,w,h);
+  // 石のまだら (決め打ちの乱数で明暗のムラ)
+  for(let row=0;row<hh*2;row++){
+    for(let i=0;i<r.w*2;i++){
+      const hsh=(r.id*31+row*7+i*13)%9;
+      if(hsh<2){ctx.fillStyle=hsh?"rgba(255,250,235,.05)":"rgba(20,14,8,.07)";
+        const bx=x+i*TILE/2+(((r.f+row)%2)?TILE/4:0);
+        ctx.fillRect(bx,y+row*TILE/2,TILE/2,TILE/2);}
+    }
+  }
+  // 目地は薄い茶系 (真っ黒は使わない: 掟其の三)
+  ctx.strokeStyle="rgba(40,28,16,.22)";ctx.lineWidth=1;
   for(let row=0;row<hh*2;row++){
     for(let i=0;i<r.w*2;i++){
       const bx=x+i*TILE/2+(((r.f+row)%2)?TILE/4:0);
       ctx.strokeRect(bx+.5,y+row*TILE/2+.5,TILE/2,TILE/2);
     }
   }
+  // 左から陽が当たり、右へ影が落ちる
+  ctx.fillStyle="rgba(255,236,200,.08)";ctx.fillRect(x,y,2,h);
+  ctx.fillStyle="rgba(255,255,245,.06)";ctx.fillRect(x,y,w,2);
+  ctx.fillStyle="rgba(15,10,5,.13)";ctx.fillRect(x+w-2,y,2,h);
+  // 夜は外壁がほんのり青く沈む
+  if(night){ctx.fillStyle="rgba(14,20,38,.22)";ctx.fillRect(x,y,w,h);}
   ctx.fillStyle="#3a2e20";ctx.fillRect(x,y+h-3,w,3);
+  // 建物のフチを締める外枠 (外は太く、内側のディテールは細く: 掟其の二)
+  ctx.strokeStyle="rgba(28,20,12,.5)";ctx.lineWidth=1.5;
+  ctx.strokeRect(x+.75,y+.75,w-1.5,h-1.5);ctx.lineWidth=1;
   const t=perfNow*.001;
   const warm=(a)=>`rgba(255,190,90,${a})`;
   switch(r.type){
@@ -2385,6 +2461,7 @@ function drawRoom(r,night,sIdx){
       ctx.strokeRect(x+4.5,y+2.5,TILE-9,h-6);
       ctx.fillStyle=route==="fantasy"?`rgba(170,110,240,${.3+.4*fl})`:`rgba(110,170,240,${.3+.4*fl})`;
       ctx.fillRect(x+6,y+4,TILE-12,h-9);
+      glowCirc(x+TILE/2,y+h/2,9+fl*3,route==="fantasy"?"170,110,240":"110,170,240",.30+.18*fl);
       break;}
     case "farm":{
       const cropCol=[["#7cb05a","#9ac56e"],["#caa53c","#e0c060"],["#b08030","#caa040"],["#cfd6dc","#e8edf2"]][sIdx];
@@ -2486,8 +2563,10 @@ function drawRoom(r,night,sIdx){
       break;}
     case "blacksmith":{
       const glow=.5+.5*Math.sin(t*6+r.c);
+      glowCirc(x+9,y+14,10+glow*3,"255,130,40",.30+.18*glow);
       ctx.fillStyle=`rgba(255,${90+glow*60},30,${.55+.3*glow})`;
       ctx.fillRect(x+5,y+9,9,11);                         // 炉の火
+      if(!built(r.c,r.f+(r.hh||1))){ctx.fillStyle="#4a3a2c";ctx.fillRect(x+6,y-4,4,5);smokePuffs(x+8,y-4,r.id);}
       ctx.fillStyle="#33291c";ctx.fillRect(x+4,y+7,11,3);
       // 鉄床と槌を振る鍛冶師
       ctx.fillStyle="#454a50";ctx.fillRect(x+w-16,y+h-7,9,3);
@@ -2518,6 +2597,8 @@ function drawRoom(r,night,sIdx){
         ctx.fillRect(x+6+i*4,y+6.5,2,4);}
       // 吊りランプ
       lamp(x+w/2,y+8,lit,r.id);
+      // 煙突 (上が空いていれば湯気が立つ)
+      if(!built(r.c+r.w-1,r.f+(r.hh||1))){ctx.fillStyle="#4a3a2c";ctx.fillRect(x+w-9,y-4,4,5);smokePuffs(x+w-7,y-4,r.id);}
       // 樽の山
       for(let b=0;b<2;b++){ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-10,y+h-6-b*5,7,5);
         ctx.fillStyle="#4e3420";ctx.fillRect(x+w-10,y+h-4.5-b*5,7,1);ctx.fillRect(x+w-10,y+h-7+b*-5+5,7,0.8);}
@@ -2581,6 +2662,7 @@ function drawRoom(r,night,sIdx){
       ctx.beginPath();ctx.arc(x+20,y+h-6,4,Math.PI,0);ctx.fill();
       ctx.fillRect(x+8,y+h-5,18,3);
       const sp=.5+.5*Math.sin(t*4+r.c*2);
+      glowCirc(x+15,y+h-12,6,"255,235,150",.35*sp+.1);
       ctx.fillStyle=`rgba(255,240,160,${sp})`;ctx.fillRect(x+14,y+h-13,2,2);
       ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-21,y+h-11,14,8);
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w-21,y+h-8,14,2);
@@ -2630,9 +2712,9 @@ function drawRoom(r,night,sIdx){
       if(!built(r.c+(r.w>>1),r.f+hh)){
         ctx.fillStyle="#52407a";
         ctx.beginPath();ctx.moveTo(txc-tw2/2-3,y-2);ctx.lineTo(txc,y-16);ctx.lineTo(txc+tw2/2+3,y-2);ctx.closePath();ctx.fill();
-        ctx.fillStyle=`rgba(170,110,240,${.5+.5*fl})`;
+        glowCirc(txc,y-18,8+fl*3,"180,120,250",.40+.25*fl);
+        ctx.fillStyle=`rgba(200,150,255,${.6+.4*fl})`;
         ctx.beginPath();ctx.arc(txc,y-18,2.6+fl,0,7);ctx.fill();
-        ctx.fillStyle=`rgba(220,180,255,${.3*fl})`;ctx.beginPath();ctx.arc(txc,y-18,5+fl*2,0,7);ctx.fill();
       }
       // 漂うルーン
       for(let i=0;i<3;i++){const a=t*1.2+i*2.1;
@@ -2740,6 +2822,7 @@ function drawRoom(r,night,sIdx){
         ctx.fillStyle="#2a3450";
         ctx.beginPath();ctx.moveTo(x+4,y);ctx.quadraticCurveTo(x+w/2,y-15,x+w-4,y);ctx.closePath();ctx.fill();
         ctx.strokeStyle="#caa53c";ctx.beginPath();ctx.moveTo(x+4,y);ctx.quadraticCurveTo(x+w/2,y-15,x+w-4,y);ctx.stroke();
+        glowCirc(x+w/2,y-9,7,"255,235,170",.5);
         ctx.fillStyle=`rgba(255,240,180,${.7+.3*fl})`;ctx.beginPath();ctx.arc(x+w/2,y-9,2.2,0,7);ctx.fill(); // 頂の星
       }
       // 全高の尖頭窓
@@ -2756,6 +2839,7 @@ function drawRoom(r,night,sIdx){
       ctx.strokeStyle=`rgba(230,200,120,${.7+.3*fl})`;ctx.lineWidth=1.2;
       ctx.beginPath();ctx.ellipse(oX,oY,8,3,t*.7,0,7);ctx.stroke();
       ctx.beginPath();ctx.ellipse(oX,oY,3,8,-t*.5,0,7);ctx.stroke();ctx.lineWidth=1;
+      glowCirc(oX,oY,9+fl*2.5,"255,230,150",.4+.2*fl);
       ctx.fillStyle=`rgba(255,240,180,${.6+.4*fl})`;ctx.beginPath();ctx.arc(oX,oY,3,0,7);ctx.fill();
       ctx.fillStyle="#caa53c";ctx.fillRect(oX-1.2,y+h-6,2.4,3);   // 台座
       // 雲の床
@@ -2765,6 +2849,7 @@ function drawRoom(r,night,sIdx){
     case "portal":{
       const fl=.5+.5*Math.sin(t*5+r.c);
       ctx.fillStyle="#120a20";ctx.fillRect(x+3,y+2,TILE-6,h-5);
+      glowCirc(x+TILE/2,y+h/2,11+fl*3,"150,90,240",.34+.2*fl);
       ctx.strokeStyle=`rgba(160,110,240,${.5+.5*fl})`;ctx.lineWidth=2;
       ctx.beginPath();ctx.ellipse(x+TILE/2,y+h/2,7,10,0,0,7);ctx.stroke();ctx.lineWidth=1;
       ctx.fillStyle=`rgba(120,80,220,${.3+.4*fl})`;
@@ -2780,6 +2865,7 @@ function drawRoom(r,night,sIdx){
         const bub=Math.sin(t*4+i)*1;ctx.fillStyle="#e8d8a0";
         ctx.beginPath();ctx.arc(vx-2,y+h-10+bub,.8,0,7);ctx.arc(vx+2,y+h-11-bub,.8,0,7);ctx.fill();}
       lamp(x+w-7,y+8,night,r.id);
+      if(!built(r.c,r.f+(r.hh||1))){ctx.fillStyle="#4a3a2c";ctx.fillRect(x+5,y-4,4,5);smokePuffs(x+7,y-4,r.id);}
       // 樽の山
       ctx.fillStyle="#6e4a2e";ctx.fillRect(x+w-12,y+h-7,8,4);
       ctx.fillStyle="#4e3420";ctx.fillRect(x+w-12,y+h-5.5,8,1);
@@ -2843,6 +2929,10 @@ function drawRoom(r,night,sIdx){
       // ベンチと佇む人
       ctx.fillStyle="#7a5430";ctx.fillRect(x+w-13,y+h-6,9,1.5);ctx.fillRect(x+w-12,y+h-5,1,3);ctx.fillRect(x+w-5,y+h-5,1,3);
       figure(x+w-9,y+h-3,{pose:"sit",col:"#5e3a78",seed:r.id});
+      // 夜は蛍が舞う
+      if(night)for(let i=0;i<4;i++){const a=t*.9+i*1.7;
+        const fx2=x+8+((Math.sin(a)*.5+.5)*(w-16)), fy2=y+h-8+Math.sin(a*1.7+i)*4;
+        glowCirc(fx2,fy2,3.2,"190,255,140",.35+.3*Math.sin(t*3+i));}
       break;}
     case "mine":{
       ctx.fillStyle=night?"#241c14":"#3a2e22";ctx.fillRect(x+2,y+2,w-4,h-5);
@@ -2944,6 +3034,7 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#3a5a6e";ctx.fillRect(x+w/2-8,y+h-6,16,3);
       ctx.fillStyle="#5a8aa0";ctx.fillRect(x+w/2-1.4,y+h-12,2.8,6);
       const sp=.5+.5*Math.sin(t*4);
+      glowCirc(x+w/2,y+h-12,11+sp*3,"160,225,245",.25+.15*sp);
       ctx.fillStyle=`rgba(150,220,240,${.55+.3*sp})`;               // 噴き上がる水
       ctx.beginPath();ctx.ellipse(x+w/2,y+h-13,3+sp,4,0,0,7);ctx.fill();
       // 舞う燐光
@@ -3010,8 +3101,8 @@ function drawRoom(r,night,sIdx){
       // 台座の上の賢者の石（脈動する赤）
       ctx.fillStyle="#4a3a2a";ctx.fillRect(x+w/2-4,y+h-7,8,4);
       const pl=.5+.5*Math.sin(t*3);
-      ctx.fillStyle=`rgba(220,60,40,${.6+.4*pl})`;ctx.beginPath();ctx.arc(x+w/2,y+h-9,2.6+pl,0,7);ctx.fill();
-      ctx.fillStyle=`rgba(255,180,120,${.4*pl})`;ctx.beginPath();ctx.arc(x+w/2,y+h-9,5+pl*2,0,7);ctx.fill();
+      glowCirc(x+w/2,y+h-9,9+pl*3,"235,80,50",.45+.25*pl);
+      ctx.fillStyle=`rgba(230,70,45,${.7+.3*pl})`;ctx.beginPath();ctx.arc(x+w/2,y+h-9,2.6+pl,0,7);ctx.fill();
       // 錬成陣
       ctx.strokeStyle=`rgba(220,120,80,${.5+.3*pl})`;ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(x+w/2,y+h-4,7,Math.PI,0);ctx.stroke();
