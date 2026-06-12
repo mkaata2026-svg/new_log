@@ -1838,9 +1838,14 @@ const AGENT_CAP=260;
 function spawnAgent(kind,targetRoom){
   if(agents.length>=AGENT_CAP)return;
   const c=GATE_C+Math.floor(rnd(0,GATE_W));
-  const a={kind,f:0,x:(c+.5)*TILE+rnd(-6,6),path:null,pi:0,wait:0,leaving:false,
+  const look=kind==="knight"?null:pickLook();
+  const a={kind,look,f:0,x:(c+.5)*TILE+rnd(-6,6),path:null,pi:0,wait:0,leaving:false,
     stress:0,jp:Math.random()*9,wdir:Math.random()<.5?-1:1,
     bob:Math.random()*7,speed:rnd(28,58)};
+  if(look){
+    if(look.quick)a.speed*=1.25;     // 子供は駆け回る
+    if(look.slow)a.speed*=0.55;      // 老人はゆっくり
+  }
   if(targetRoom){
     const p=findPath(c,0,targetRoom.c+Math.floor(rnd(0,targetRoom.w)),targetRoom.f);
     if(!p)return;
@@ -2128,10 +2133,21 @@ function draw(){
   ctx.restore();
 }
 
-// ---- 小さな人物（多彩なポーズ）。footY=足元のy、px=中心x ----
+// ---- 小さな人物（多彩なポーズ＋衣装）。footY=足元のy、px=中心x ----
 const SKINS=["#caa070","#b88a5a","#e0b888","#9a6a44"];
+function mixCol(hex,target,t){       // hex色を target へ t(0-1) だけ寄せる
+  const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const a=p(hex),b=p(target);
+  return "rgb("+a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(",")+")";
+}
 function figure(px,footY,o){
   o=o||{};
+  const sc=o.scale||1;
+  if(sc!==1){ctx.save();ctx.translate(px,footY);ctx.scale(sc,sc);px=0;footY=0;}
+  figureBody(px,footY,o);
+  if(sc!==1)ctx.restore();
+}
+function figureBody(px,footY,o){
   const col=o.col||"#241a10";
   const skin=o.skin||SKINS[(o.seed||0)%SKINS.length];
   const tm=perfNow;
@@ -2163,17 +2179,41 @@ function figure(px,footY,o){
   }
   // 立つ／歩く／働く／読む
   const head=footY-11;
+  if(o.cape){                                        // マント (貴族など)
+    ctx.fillStyle=o.cape;
+    ctx.fillRect(px-3.4,head+3,2,6.5);
+  }
   ctx.fillStyle=skin;ctx.fillRect(px-1.5,head,3,3);  // 頭
-  if(o.hat){ctx.fillStyle=o.hat;ctx.fillRect(px-2,head-1.5,4,2);}
+  if(o.hood){                                        // フード (修道士など)
+    ctx.fillStyle=col;
+    ctx.fillRect(px-2.2,head-1,4.4,2);
+    ctx.fillRect(px-2.2,head,1.2,3);ctx.fillRect(px+1,head,1.2,3);
+  }else if(o.hat){ctx.fillStyle=o.hat;ctx.fillRect(px-2,head-1.5,4,2);}
+  if(o.hair){ctx.fillStyle=o.hair;ctx.fillRect(px-2,head-0.8,4,1.4);}  // 髪 (町娘など)
   ctx.fillStyle=col;ctx.fillRect(px-2,head+3,4,5);   // 胴
-  if(o.pose==="walk"){
-    const ph=o.ph||0;
+  const ph=o.pose==="walk"?(o.ph||0):0;
+  if(o.skirt){                                       // スカート (裾広がり)
+    ctx.fillStyle=col;
+    ctx.beginPath();ctx.moveTo(px-2,head+7);ctx.lineTo(px+2,head+7);
+    ctx.lineTo(px+3,footY);ctx.lineTo(px-3,footY);ctx.closePath();ctx.fill();
+    ctx.fillStyle=skin;                              // 覗く足先
+    ctx.fillRect(px-1.6+ph*.6,footY-1,1.2,1);ctx.fillRect(px+0.6-ph*.6,footY-1,1.2,1);
+  }else if(o.pose==="walk"){
     ctx.fillRect(px-2+ph,footY-3,1.6,3);
     ctx.fillRect(px+0.4-ph,footY-3,1.6,3);
   }else{
     ctx.fillRect(px-2,footY-3,1.6,3);
     ctx.fillRect(px+0.4,footY-3,1.6,3);
   }
+  // ---- 持ち物・小物 ----
+  if(o.bag){ctx.fillStyle="#6e4a2e";ctx.fillRect(px+2.2,head+5,2.4,3);  // 行商の鞄
+    ctx.fillStyle="#caa53c";ctx.fillRect(px+2.2,head+5.8,2.4,0.7);}
+  if(o.cane){ctx.strokeStyle="#7a5430";ctx.lineWidth=1;                 // 老人の杖
+    ctx.beginPath();ctx.moveTo(px+3,head+5);ctx.lineTo(px+3+ph*.4,footY);ctx.stroke();}
+  if(o.sword){ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1;                // 冒険者の剣
+    ctx.beginPath();ctx.moveTo(px-3,head+8);ctx.lineTo(px-1.4,head+2.5);ctx.stroke();
+    ctx.fillStyle="#7a5430";ctx.fillRect(px-2.6,head+6.4,1.8,1.2);}
+  if(o.basket){ctx.fillStyle="#b8a45a";ctx.fillRect(px+2,head+4.5,2.6,2);} // 麦籠
   if(o.pose==="work"){
     const sw=Math.sin(tm*.012+(o.seed||0))*3;
     ctx.fillStyle="#7a5430";ctx.fillRect(px+2,head+1+sw,1.6,5);    // 振り上げる道具
@@ -2182,6 +2222,26 @@ function figure(px,footY,o){
   }else if(o.pose==="shop"){
     ctx.fillStyle="#8a6a3a";ctx.fillRect(px+2,head+4,2,2);         // 買い物籠
   }
+}
+
+// ---- 町の人々の見た目 (歩く住人は黒い人ではなく、それぞれの暮らしの姿で) ----
+const AGENT_LOOKS=[
+  {k:"peasant", col:"#5a4a2c", hat:"#c9b46a", basket:true, w:1.5},     // 麦わら帽の農夫
+  {k:"woman",   col:"#8a4a5e", hair:"#3a2a18", skirt:true, w:1.3},     // 町娘
+  {k:"merchant",col:"#3f5e8c", hat:"#2a3a56", bag:true,   w:1.0},      // 行商人
+  {k:"craftsman",col:"#6e4a2e", hat:"#4a3422",            w:1.0},      // 職人
+  {k:"monk",    col:"#7a7468", hood:true,                 w:0.7},      // 修道士
+  {k:"noble",   col:"#5e3a78", hat:"#caa53c", cape:"#8e2b2b", w:0.5},  // 貴族
+  {k:"child",   col:"#a05a30", scale:0.72, quick:true,    w:0.9},      // 子供 (小さくて素早い)
+  {k:"elder",   col:"#4e4e46", cane:true, slow:true,      w:0.6},      // 杖の老人
+  {k:"adventurer",col:"#3a5c3a", hat:"#5a7a52", sword:true, w:0.7, fantasy:true}, // 冒険者
+];
+function pickLook(){
+  const pool=AGENT_LOOKS.filter(l=>!l.fantasy||route==="fantasy");
+  let tot=0;for(const l of pool)tot+=l.w;
+  let roll=Math.random()*tot;
+  for(const l of pool){roll-=l.w;if(roll<=0)return l;}
+  return pool[0];
 }
 // 住居：ベッドを occ に合わせて並べ、夜は就寝・昼は団欒
 function drawDwelling(r,x,y,w,h,night,o){
@@ -2209,8 +2269,9 @@ function drawDwelling(r,x,y,w,h,night,o){
         if(b===0){ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="italic 7px serif";
           ctx.fillText("z",bx+5,by-4);}
       }else{
-        figure(bx,by,{pose:(b+r.c)%3===0?"stand":"sit",col:o.posh?"#3a2a4a":"#241a10",
-          hat:o.posh?"#caa53c":null,seed:r.id+b});
+        const wears=o.posh?["#3a2a4a","#5e3a78","#6b3050"]:["#5a4a2c","#6e4a2e","#8a4a5e","#3f5e8c","#4e5a3a"];
+        figure(bx,by,{pose:(b+r.c)%3===0?"stand":"sit",col:wears[(r.id+b)%wears.length],
+          hat:o.posh?"#caa53c":null,skirt:(r.id+b)%3===1&&!o.posh,seed:r.id+b});
       }
     }
   }
@@ -2615,16 +2676,24 @@ function drawAgent(a,night){
   const y=floorTopY(a.f)+TILE-2;
   const x=a.x;
   const s=clamp(a.stress/100,0,1);
-  // ストレスで肌着の色が黒→赤に（タワー流の苛立ち表現）
-  let col="#17120d";
-  if(s>0.66)col="#d83828";
-  else if(s>0.33)col="#7a3026";
+  const lk=a.look||{};
+  // 衣装の色が苛立ちで赤へ染まる（タワー流のストレス表現）
+  const baseCol=a.kind==="knight"?"#2a2a30":(lk.col||"#241a10");
+  const col=s>0.05?mixCol(baseCol,"#e03020",s*0.85):baseCol;
   const pose=agentPose(a);
   const ph=Math.sin(perfNow*.02*(a.speed*.22)+a.jp)*1.7;
   figure(x,y,{pose,col,ph,seed:a.jp|0,
-    hat:a.kind==="knight"?"#9aa6b2":null});
+    scale:lk.scale||1,
+    hat:a.kind==="knight"?"#9aa6b2":lk.hat,
+    hood:lk.hood,hair:lk.hair,skirt:lk.skirt,cape:lk.cape,
+    bag:lk.bag,cane:lk.cane,sword:lk.sword,basket:lk.basket});
   if(a.kind==="knight"){                     // 兜の前立て
     ctx.fillStyle="#c03028";ctx.fillRect(x-0.5,y-13,1.6,2);
+  }
+  // 強い苛立ちは💢印でも分かるように
+  if(s>0.66){
+    ctx.fillStyle="rgba(255,70,40,.9)";
+    ctx.font="6px sans-serif";ctx.fillText("💢",x+2,y-12);
   }
 }
 
