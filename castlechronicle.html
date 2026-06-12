@@ -105,7 +105,7 @@
     border-radius:4px;padding:8px 24px;font-size:15px;font-weight:bold;cursor:pointer;letter-spacing:.08em;}
   .scroll .choice-btns{display:flex;gap:10px;margin-top:14px;}
   .scroll .choice-btns button{flex:1;margin:0;font-size:13px;padding:10px 8px;line-height:1.5;}
-  .scroll .choice-btns button.alt{background:#3f5e8c;}
+  .scroll .choice-btns button.alt{background:#46618a;}
   .scroll .help-k{font-weight:bold;color:var(--crimson);}
   .scroll small{color:#6e5b39;}
   .scroll .resetline{text-align:center;margin-top:10px;}
@@ -228,7 +228,7 @@ const foodCap=()=>2000+400*countType("granary");
 const RANKS = [
   {name:"開拓地",   pop:0,    crest:"⚑",  col:"#8a8578"},
   {name:"砦",       pop:30,   crest:"🛡", col:"#5e7252"},
-  {name:"男爵の城", pop:110,  crest:"🦅", col:"#3f5e8c"},
+  {name:"男爵の城", pop:110,  crest:"🦅", col:"#46618a"},
   {name:"伯爵の城", pop:240,  crest:"🦁", col:"#7a3fa0"},
   {name:"公爵の城", pop:420,  crest:"🐉", col:"#a0322e"},
   {name:"王城",     pop:650,  crest:"👑", col:"#c9a227", needsThrone:true},
@@ -2006,6 +2006,7 @@ const GROUND_Y = floorTopY(0)+TILE;
 let stars=[];for(let i=0;i<110;i++)stars.push([Math.random(),Math.random()*.55,Math.random()]);
 let clouds=[];for(let i=0;i<7;i++)clouds.push({x:Math.random()*WORLD_W,y:rnd(30,260),w:rnd(70,150),s:rnd(3,8)});
 let snow=[];for(let i=0;i<120;i++)snow.push({x:Math.random(),y:Math.random(),v:rnd(14,34),sw:rnd(1,3)});
+let gradeOn=true;     // 仕上げの色調統一 (オフにすると素の色)
 let rainArr=[];for(let i=0;i<150;i++)rainArr.push({x:Math.random(),y:Math.random(),v:rnd(260,420),l:rnd(7,12)});
 let lightning={next:0,at:-9999,x:0};
 
@@ -2272,6 +2273,21 @@ function draw(){
     }
   }
   ctx.restore();
+
+  // --- 仕上げ: 色調グレーディング (時間帯で世界全体のトーンを統一) ---
+  if(gradeOn){
+    const grade=isNight()?"rgba(72,92,150,.11)"
+      :(dayT>0.42&&dayT<0.52)?"rgba(255,168,92,.11)"   // 夕焼けは琥珀
+      :(dayT<0.08)?"rgba(255,190,140,.09)"             // 朝は薔薇色
+      :"rgba(255,226,178,.07)";                        // 昼は羊皮紙色
+    ctx.globalCompositeOperation="soft-light";
+    ctx.fillStyle=grade;ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation="source-over";
+    // 周辺減光 (視線が自然と城へ集まる)
+    const vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.42,W/2,H/2,Math.max(W,H)*.78);
+    vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(12,9,6,.17)");
+    ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+  }
 }
 
 // ---- 小さな人物（多彩なポーズ＋衣装）。footY=足元のy、px=中心x ----
@@ -2370,7 +2386,7 @@ function figureBody(px,footY,o){
 const AGENT_LOOKS=[
   {k:"peasant", col:"#5a4a2c", hat:"#c9b46a", basket:true, w:1.5},     // 麦わら帽の農夫
   {k:"woman",   col:"#8a4a5e", hair:"#3a2a18", skirt:true, w:1.3},     // 町娘
-  {k:"merchant",col:"#3f5e8c", hat:"#2a3a56", bag:true,   w:1.0},      // 行商人
+  {k:"merchant",col:"#46618a", hat:"#2a3a56", bag:true,   w:1.0},      // 行商人
   {k:"craftsman",col:"#6e4a2e", hat:"#4a3422",            w:1.0},      // 職人
   {k:"monk",    col:"#7a7468", hood:true,                 w:0.7},      // 修道士
   {k:"noble",   col:"#5e3a78", hat:"#caa53c", cape:"#8e2b2b", w:0.5},  // 貴族
@@ -2446,8 +2462,8 @@ function drawDwelling(r,x,y,w,h,night,o){
     ctx.beginPath();ctx.moveTo(wx+3.5,y+3);ctx.lineTo(wx+3.5,y+9);ctx.stroke();
     ctx.moveTo(wx,y+6);ctx.lineTo(wx+7,y+6);ctx.stroke();
     if(o.posh){ctx.fillStyle="#6e4a2e";ctx.fillRect(wx,y+9,7,1.5);        // プランター
-      ctx.fillStyle="#7cab54";ctx.fillRect(wx+1,y+8,1.5,1.5);ctx.fillRect(wx+4,y+8,1.5,1.5);
-      ctx.fillStyle="#e06a8a";ctx.fillRect(wx+2.5,y+7.5,1,1);}            // 花
+      ctx.fillStyle="#74a050";ctx.fillRect(wx+1,y+8,1.5,1.5);ctx.fillRect(wx+4,y+8,1.5,1.5);
+      ctx.fillStyle="#cf7890";ctx.fillRect(wx+2.5,y+7.5,1,1);}            // 花
   }
   // 壁掛けランプ（タイルごと交互に）
   for(let i=0;i<r.w;i++)lamp(x+i*TILE+5,y+7,lit,r.id+i);
@@ -2474,7 +2490,7 @@ function drawDwelling(r,x,y,w,h,night,o){
         if(b===0){ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="italic 7px serif";
           ctx.fillText("z",bx+5,by-4);}
       }else{
-        const wears=o.posh?["#3a2a4a","#5e3a78","#6b3050"]:["#5a4a2c","#6e4a2e","#8a4a5e","#3f5e8c","#4e5a3a"];
+        const wears=o.posh?["#3a2a4a","#5e3a78","#6b3050"]:["#5a4a2c","#6e4a2e","#8a4a5e","#46618a","#4e5a3a"];
         figure(bx,by,{pose:(b+r.c)%3===0?"stand":"sit",col:wears[(r.id+b)%wears.length],
           hat:o.posh?"#caa53c":null,skirt:(r.id+b)%3===1&&!o.posh,seed:r.id+b});
       }
@@ -2556,7 +2572,7 @@ function drawRoom(r,night,sIdx){
     case "mlift":{
       const fl=.5+.5*Math.sin(t*4+r.c);
       ctx.fillStyle="#241a32";ctx.fillRect(x+4,y+2,TILE-8,h-5);
-      ctx.strokeStyle=route==="fantasy"?"#9a6ae0":"#5a9ad0";
+      ctx.strokeStyle=route==="fantasy"?"#9a6ae0":"#6493bd";
       ctx.strokeRect(x+4.5,y+2.5,TILE-9,h-6);
       ctx.fillStyle=route==="fantasy"?`rgba(170,110,240,${.3+.4*fl})`:`rgba(110,170,240,${.3+.4*fl})`;
       ctx.fillRect(x+6,y+4,TILE-12,h-9);
@@ -2618,7 +2634,7 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle=night?"#3b3630":"#6e6557";ctx.fillRect(x+2,y+2,w-4,h-5);
       // 縞模様の日除けテント
       for(let i=0;i<r.w*2;i++){
-        ctx.fillStyle=i%2?"#b8412e":"#e6dcc2";
+        ctx.fillStyle=i%2?"#a84a38":"#e6dcc2";
         ctx.beginPath();
         ctx.moveTo(x+i*TILE/2,y+1);ctx.lineTo(x+(i+1)*TILE/2,y+1);
         ctx.lineTo(x+(i+1)*TILE/2-3,y+8);ctx.lineTo(x+i*TILE/2+3,y+8);
@@ -2627,13 +2643,13 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#8a3325";ctx.fillRect(x+2,y+8,w-4,1.5);          // テント縁
       // 吊るした品（ソーセージ・ハーブ・玉ねぎ）
       for(let i=0;i<r.w;i++){const hx=x+i*TILE+TILE/2;
-        const goods=["#9a3b2e","#7cab54","#caa53c"][(r.id+i)%3];
+        const goods=["#9a3b2e","#74a050","#caa53c"][(r.id+i)%3];
         ctx.fillStyle=goods;ctx.fillRect(hx-1,y+9,2,3.5);ctx.fillRect(hx-3,y+9,2,3);ctx.fillRect(hx+1,y+9,2,3);}
       // 露店の台と山積みの品
       const standY=y+h-7;
       ctx.fillStyle="#7a5430";ctx.fillRect(x+4,standY,w-8,3);         // 木の台
       ctx.fillStyle="#5a3e22";ctx.fillRect(x+5,standY+3,2,3);ctx.fillRect(x+w-7,standY+3,2,3);
-      const palette=["#7c9456","#b8412e","#caa53c","#9a5a2e","#d06a3a"];
+      const palette=["#74945a","#a84a38","#caa53c","#9a5a2e","#d06a3a"];
       for(let i=0;i<r.w*3;i++){const gx=x+7+i*((w-14)/(r.w*3));
         ctx.fillStyle=palette[(r.id+i)%palette.length];
         ctx.beginPath();ctx.arc(gx,standY-1,1.7,0,7);ctx.fill();}     // 果物の山
@@ -2692,7 +2708,7 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#e8c84a";ctx.fillRect(x+1.5,y+8.5,2.5,2.5);
       // 背後の酒棚（瓶を並べる）
       ctx.fillStyle="#3e2a16";ctx.fillRect(x+5,y+10,w*0.4,2);
-      for(let i=0;i<5;i++){ctx.fillStyle=["#7cab54","#9a3b2e","#caa53c","#5a9ad0"][i%4];
+      for(let i=0;i<5;i++){ctx.fillStyle=["#74a050","#9a3b2e","#caa53c","#6493bd"][i%4];
         ctx.fillRect(x+6+i*4,y+6.5,2,4);}
       // 吊りランプ
       lamp(x+w/2,y+8,lit,r.id);
@@ -2716,7 +2732,7 @@ function drawRoom(r,night,sIdx){
       }
       break;}
     case "barracks":{
-      const shieldCols=["#8e2b2b","#3f5e8c"];
+      const shieldCols=["#8e2b2b","#46618a"];
       for(let i=0;i<2;i++){
         const sx=x+10+i*(w-26);
         ctx.fillStyle=shieldCols[i];
@@ -2738,7 +2754,7 @@ function drawRoom(r,night,sIdx){
       break;}
     case "chapel":{
       // ステンドグラス
-      const cols=["#b8412e","#3f5e8c","#caa53c"];
+      const cols=["#a84a38","#46618a","#caa53c"];
       for(let i=0;i<3;i++){
         const wx=x+w/2-21+i*15;
         ctx.fillStyle=night?cols[i]:"#2a3140";
@@ -2779,7 +2795,7 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#9a937f";ctx.fillRect(x,y+2,w,4);
       for(let i=0;i<r.w+1;i++)ctx.fillRect(x+3+i*(w-8)/r.w,y+7,3,h-11);
       // 書見台で読む学者
-      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+6,y+h-9,5,6);
+      ctx.fillStyle="#46618a";ctx.fillRect(x+6,y+h-9,5,6);
       ctx.fillStyle="#8e2b2b";ctx.fillRect(x+12,y+h-9,5,6);   // 書架
       figure(x+w-12,y+h-3,{pose:"read",col:"#23304a",hat:"#2a3a5a",seed:r.id});
       break;}
@@ -2796,7 +2812,7 @@ function drawRoom(r,night,sIdx){
       // 下層: 書斎 (全幅)
       ctx.fillStyle="#352a48";ctx.fillRect(x+2,y+TILE+2,w-4,TILE-5);
       ctx.fillStyle="#241a32";ctx.fillRect(x+4,y+TILE+5,w*0.45,2);          // 書棚
-      const bc=["#7cab54","#9a3bce","#caa53c","#5a9ad0"];
+      const bc=["#74a050","#8a52b8","#caa53c","#6493bd"];
       for(let i=0;i<5;i++){ctx.fillStyle=bc[i%4];ctx.fillRect(x+5+i*3.4,y+TILE+5.8,2.2,4);}
       figure(x+w-9,y+h-3,{pose:"read",col:"#3a2c4e",hood:true,seed:r.id});  // 魔導士
       // 上層: 細い塔身 (両脇はテラス)
@@ -2872,7 +2888,7 @@ function drawRoom(r,night,sIdx){
       // 天井の高い大広間
       ctx.fillStyle=night?"#2a2024":"#5e4a44";ctx.fillRect(x+2,y+2,w-4,h-5);
       // 垂れ下がる軍旗
-      const banCols=["#8e2b2b","#3f5e8c","#8e2b2b","#3f5e8c"];
+      const banCols=["#8e2b2b","#46618a","#8e2b2b","#46618a"];
       for(let i=0;i<4;i++){const bx2=x+10+i*((w-20)/3);
         ctx.fillStyle=banCols[i];
         ctx.beginPath();ctx.moveTo(bx2-3.4,y+3);ctx.lineTo(bx2+3.4,y+3);
@@ -3008,7 +3024,7 @@ function drawRoom(r,night,sIdx){
         ctx.quadraticCurveTo(ax,y+TILE+2,ax+7,y+TILE+9);ctx.lineTo(ax+7,y+h-4);ctx.closePath();ctx.fill();}
       // 中庭の薬草鉢・祭壇・修道士たち
       ctx.fillStyle="#6e4a2e";ctx.fillRect(x+5,y+h-6,4,3);
-      ctx.fillStyle="#5e8a3c";ctx.fillRect(x+5.5,y+h-8,3,2);
+      ctx.fillStyle="#5d8a44";ctx.fillRect(x+5.5,y+h-8,3,2);
       lamp(x+w-6,y+TILE+8,true,r.id);
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w-9,y+h-12,1.4,5);ctx.fillRect(x+w-10.5,y+h-10.8,4,1.4);
       figure(x+w/2-6,y+h-3,{pose:"pray",col:"#5a554a",hood:true,seed:r.id});
@@ -3019,11 +3035,11 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle="#4a3a26";ctx.fillRect(x,y+h-6,w,4);          // 花壇の土
       // 小さな木
       ctx.fillStyle="#6e4a2e";ctx.fillRect(x+8,y+h-12,2,7);
-      ctx.fillStyle=night?"#2e4a2e":"#5e8a3c";ctx.beginPath();ctx.arc(x+9,y+h-13,5,0,7);ctx.fill();
+      ctx.fillStyle=night?"#2e4a2e":"#5d8a44";ctx.beginPath();ctx.arc(x+9,y+h-13,5,0,7);ctx.fill();
       // 花の列
-      const fcol=["#e06a8a","#caa53c","#7c9ad0","#e8e0a0"];
+      const fcol=["#cf7890","#caa53c","#7c9ad0","#e8e0a0"];
       for(let i=0;i<r.w*3;i++){const fx=x+14+i*((w-20)/(r.w*3));
-        ctx.fillStyle="#5e8a3c";ctx.fillRect(fx,y+h-9,1,4);
+        ctx.fillStyle="#5d8a44";ctx.fillRect(fx,y+h-9,1,4);
         ctx.fillStyle=fcol[(r.id+i)%4];ctx.beginPath();ctx.arc(fx+.5,y+h-10,1.6,0,7);ctx.fill();}
       // ベンチと佇む人
       ctx.fillStyle="#7a5430";ctx.fillRect(x+w-13,y+h-6,9,1.5);ctx.fillRect(x+w-12,y+h-5,1,3);ctx.fillRect(x+w-5,y+h-5,1,3);
@@ -3064,7 +3080,7 @@ function drawRoom(r,night,sIdx){
       for(let i=0;i<r.w*2;i++){const wx2=x+7+i*((w-14)/(r.w*2));
         if(i%3===0){ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(wx2,y+8);ctx.lineTo(wx2,y+h-4);ctx.stroke();ctx.lineWidth=1; // 槍
           ctx.fillStyle="#cdd2d8";ctx.beginPath();ctx.moveTo(wx2,y+7);ctx.lineTo(wx2-1.4,y+10);ctx.lineTo(wx2+1.4,y+10);ctx.fill();}
-        else if(i%3===1){ctx.fillStyle=["#8e2b2b","#3f5e8c"][(r.id+i)%2];   // 盾
+        else if(i%3===1){ctx.fillStyle=["#8e2b2b","#46618a"][(r.id+i)%2];   // 盾
           ctx.beginPath();ctx.moveTo(wx2-3,y+9);ctx.lineTo(wx2+3,y+9);ctx.lineTo(wx2+3,y+14);ctx.lineTo(wx2,y+17);ctx.lineTo(wx2-3,y+14);ctx.closePath();ctx.fill();
           ctx.strokeStyle="#caa53c";ctx.stroke();}
         else{ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(wx2,y+8.5);ctx.lineTo(wx2,y+15);ctx.stroke();ctx.lineWidth=1; // 剣
@@ -3115,7 +3131,7 @@ function drawRoom(r,night,sIdx){
       ctx.fillStyle=night?"#1f2630":"#3e4a40";ctx.fillRect(x+2,y+2,w-4,h-5);
       // 棚に並ぶ色とりどりの瓶
       ctx.fillStyle="#3a2e1e";ctx.fillRect(x+4,y+10,w*0.5,1.6);
-      const vc=["#7cab54","#9a3bce","#caa53c","#5a9ad0","#e06a3a"];
+      const vc=["#74a050","#8a52b8","#caa53c","#6493bd","#e06a3a"];
       for(let i=0;i<6;i++){ctx.fillStyle=vc[i%5];ctx.fillRect(x+5+i*4,y+6,2.4,4);
         ctx.fillStyle="#cdd2d8";ctx.fillRect(x+5.5+i*4,y+5,1.4,1);}
       // 蒸留器（フラスコがぐつぐつ）
@@ -3169,14 +3185,14 @@ function drawRoom(r,night,sIdx){
       // 半円の議席
       for(let row=0;row<2;row++){const ry=y+h-5-row*4;
         ctx.fillStyle=row?"#6e5436":"#5a4128";ctx.fillRect(x+5+row*3,ry,w-10-row*6,2);
-        for(let i=0;i<r.w+1;i++)if(Math.random()<1)figure(x+8+i*((w-16)/(r.w)),ry+1,{pose:"sit",col:["#3f5e8c","#5e3a3a","#3a5a3a"][(r.id+i+row)%3],seed:r.id+i+row*7});}
+        for(let i=0;i<r.w+1;i++)if(Math.random()<1)figure(x+8+i*((w-16)/(r.w)),ry+1,{pose:"sit",col:["#46618a","#5e3a3a","#3a5a3a"][(r.id+i+row)%3],seed:r.id+i+row*7});}
       // 演壇
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-2,y+5,4,3);
       break;}
     case "guildhall":{
       ctx.fillStyle=night?"#2a2418":"#5e4e34";ctx.fillRect(x+2,y+2,w-4,h-5);
       // ギルド旗
-      ctx.fillStyle="#3f5e8c";ctx.fillRect(x+w/2-6,y+4,12,8);
+      ctx.fillStyle="#46618a";ctx.fillRect(x+w/2-6,y+4,12,8);
       ctx.fillStyle="#caa53c";ctx.fillRect(x+w/2-1,y+6,2,4);ctx.fillRect(x+w/2-3,y+7,6,1.4); // 槌の紋
       // 道具棚（金床・槌・鋸）
       ctx.fillStyle="#5a4630";ctx.fillRect(x+4,y+h-7,w-8,3);
@@ -3565,7 +3581,7 @@ function renderInfo(){
   const r=rooms[infoRoomId];
   if(!r){hideInfo();return;}
   const d=ROOMS[r.type];
-  const hcol=r.happy>=60?"#5e8a3c":(r.happy>=40?"#c98a27":"#b8412e");
+  const hcol=r.happy>=60?"#5d8a44":(r.happy>=40?"#c98a27":"#a84a38");
   let rows="";
   if(d.pop)rows+=`<div class="row"><span>${r.type==="barracks"?"騎士":r.type==="noble"?"貴族":"住民"}</span><b>${r.occ} / ${d.pop}人</b></div>`;
   if(d.rent)rows+=`<div class="row"><span>家賃収入</span><b>約${fmt(d.rent*r.occ)}G/日</b></div>`;
@@ -3598,7 +3614,7 @@ function renderInfo(){
         🔍 ✨ 何かが目に留まった——調べてみる</button>`:"";
   ip.innerHTML=`
     <h3>${d.ico} ${d.name}</h3>${warn}
-    <div class="row"><span>状態</span><b style="color:${r.active?"#5e8a3c":"#b8412e"}">${r.active?"稼働中":"⚠ 停止中"}</b></div>
+    <div class="row"><span>状態</span><b style="color:${r.active?"#5d8a44":"#a84a38"}">${r.active?"稼働中":"⚠ 停止中"}</b></div>
     ${r.type!=="gate"?`<div class="row"><span>幸福度</span><b>${r.happy}</b></div>
     <div class="happybar"><div style="width:${r.happy}%;background:${hcol}"></div></div>`:""}
     ${rows}
@@ -3845,7 +3861,7 @@ document.getElementById("helpBtn").addEventListener("click",()=>{
     🔍 右の＋－ボタン・マウスホイール(ピンチ)・二本指で拡大縮小。寄ると住人の暮らしが見える<br>
     次の称号「${next.name}」まで：人口 ${next.pop}人${next.needsThrone?" ＋ 王座の間":""}${next.needsSky?" ＋ 天空の間":""}</small></div>
     <div class="resetline" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      <button id="exportBtn" style="background:#3f5e8c">📤 セーブを書き出す</button>
+      <button id="exportBtn" style="background:#46618a">📤 セーブを書き出す</button>
       <button id="importBtn" style="background:#5e7252">📥 読み込む</button>
       <button id="resetBtn">⚠ 最初からやり直す</button>
     </div>
@@ -4100,7 +4116,7 @@ function showModeSelect(){
     <div class="choice-btns" style="flex-direction:column">
       <button id="mdScen">📯 シナリオ「王国の興亡」<br><small>全5章。十字軍・黒死病・百年戦争を章目標と共に駆け抜ける正史</small></button>
       <button id="mdEnd" class="alt">♾ エンドレス<br><small>目標は自らの心に。難易度を選んで自由に築く</small></button>
-      <button id="mdSpec" style="background:#3f5e8c">🏔 特殊シナリオ<br><small>潮の城モン・サン=ミッシェル／バベルの塔／地下帝国</small></button>
+      <button id="mdSpec" style="background:#46618a">🏔 特殊シナリオ<br><small>潮の城モン・サン=ミッシェル／バベルの塔／地下帝国</small></button>
       <button id="mdCre" style="background:#5e7252">🎨 クリエイティブ<br><small>資源無限・全施設解禁。理想の城を心ゆくまで（結末の記録は残らない）</small></button>
     </div>
   `);
