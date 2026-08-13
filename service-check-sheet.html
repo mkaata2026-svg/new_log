@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サービスチェック表（デジタル化プロトタイプ）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+
+        .cell-select {
+            appearance: none;
+            background-color: transparent;
+            border: none;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            text-align-last: center;
+            cursor: pointer;
+            font-size: 0.95rem;
+            /* Reduced from 1.1rem */
+            outline: none;
+            padding: 4px 0;
+            /* Reduced from 8px 0 */
+            color: #1f2937;
+        }
+
+        .cell-select:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .cell-select:focus {
+            background-color: #e0f2fe;
+        }
+
+        .holiday-header {
+            background-color: #fca5a5 !important;
+            color: #7f1d1d;
+        }
+
+        .saturday-header {
+            background-color: #93c5fd !important;
+            color: #1e3a8a;
+        }
+
+        .holiday-cell {
+            background-color: #fee2e2;
+        }
+
+        .saturday-cell {
+            background-color: #eff6ff;
+        }
+
+        input.remarks-input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 8px 4px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        input.remarks-input:focus {
+            background-color: #e0f2fe;
+        }
+
+        /* スクロール時の固定ヘッダー・列 */
+        .table-container {
+            max-width: 100%;
+            overflow: auto;
+            /* X/Y both scrollable */
+            position: relative;
+            background-color: #f9fafb;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        th.sticky-col,
+        td.sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            border-right: 2px solid #e5e7eb;
+            background-clip: padding-box;
+        }
+
+        thead th.sticky-col {
+            z-index: 40;
+            background-color: #e5e7eb;
+        }
+
+        /* Auto-save notification animation */
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            10% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            90% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        .save-notification {
+            animation: fadeInOut 2.5s ease-in-out forwards;
+        }
+
+        /* ----- PDF/印刷用共通スタイル ----- */
+        .pdf-area {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            font-size: 10px;
+            line-height: 1.3 !important;
+            background-color: white !important;
+            color: black !important;
+        }
+
+        .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .print-table th,
+        .print-table td {
+            border: 1px solid #666 !important;
+            padding: 2px 0 !important;
+            text-align: center;
+            vertical-align: middle;
+            line-height: 1.2 !important;
+            font-family: 'Meiryo', 'MS PGothic', sans-serif !important;
+        }
+
+        .print-table th {
+            background-color: #f3f4f6 !important;
+        }
+
+        .pdf-area .holiday-header {
+            background-color: #fca5a5 !important;
+            color: #7f1d1d !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .pdf-area .saturday-header {
+            background-color: #93c5fd !important;
+            color: #1e3a8a !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .pdf-area .holiday-cell {
+            background-color: #fee2e2 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .pdf-area .saturday-cell {
+            background-color: #eff6ff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        .page-break:last-child {
+            page-break-after: auto;
+        }
+
+        /* ブラウザ印刷スタイル */
+        @media print {
+            @page {
+                size: A3 landscape;
+                margin: 8mm;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            body {
+                background-color: white !important;
+                font-size: 10px;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            /* ステップ1: #app内の直接子要素をすべて非表示 */
+            #app>header,
+            #app>div>aside,
+            #app>div>main>div:not(#pdfExportArea) {
+                display: none !important;
+            }
+
+            /* モーダル等のfixed要素を非表示 */
+            .fixed {
+                display: none !important;
+            }
+
+            /* ステップ2: 印刷に影響する親コンテナの制約を解除 */
+            #app {
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+
+            #app>div {
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+
+            main {
+                padding: 0 !important;
+                margin: 0 !important;
+                background: white !important;
+                overflow: visible !important;
+                height: auto !important;
+                position: static !important;
+                display: block !important;
+                flex: none !important;
+            }
+
+            /* ステップ3: 印刷エリアとその子要素を表示 */
+            #pdfExportArea {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            #pdfContentWrapper {
+                display: block !important;
+                overflow: visible !important;
+            }
+
+            .page-break {
+                page-break-after: always;
+                page-break-inside: avoid;
+                min-height: 0 !important;
+                height: auto !important;
+                padding: 2mm 4mm !important;
+                display: block !important;
+                overflow: visible !important;
+            }
+
+            .page-break:last-child {
+                page-break-after: auto;
+            }
+
+            /* 印刷用テーブル */
+            .print-table {
+                width: 100% !important;
+            }
+
+            .print-table th,
+            .print-table td {
+                padding: 3px 1px !important;
+                line-height: 1.3 !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden">
+    <div id="app" class="flex flex-col h-full" v-cloak>
+
+        <!-- Header -->
+        <header class="bg-white shadow-sm px-4 py-2 flex justify-between items-center z-40 relative">
+            <h1 class="text-xl font-bold text-teal-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                サービスチェック表
+            </h1>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                    <button @click="changeMonth(-1)"
+                        class="px-2 py-1 hover:bg-white rounded shadow-sm text-gray-600 transition text-sm">&lt;</button>
+                    <span class="font-bold text-base px-2">{{ currentYear }}年 {{ currentMonth }}月</span>
+                    <button @click="changeMonth(1)"
+                        class="px-2 py-1 hover:bg-white rounded shadow-sm text-gray-600 transition text-sm">&gt;</button>
+                </div>
+                <!-- Save Status Indicator -->
+                <div v-if="saveStatus"
+                    class="ml-2 save-notification text-xs font-bold text-teal-600 bg-teal-50 px-3 py-1.5 rounded flex items-center gap-1 border border-teal-200 shadow-sm absolute right-40">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {{ saveStatus }}
+                </div>
+                <!-- Manual trigger buttons for import/export of JSON could go here later if needed, but for now we have Export to Excel. Added manual save for reassurance -->
+                <button @click="saveData"
+                    class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-3 py-1.5 rounded-lg shadow-sm transition font-bold text-sm ml-2 flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    手動保存
+                </button>
+                <button @click="showPrintModal = true"
+                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg shadow transition font-bold text-sm ml-2 flex items-center gap-1.5 hidden md:flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    印刷 / PDF保存 (A3横)
+                </button>
+                <button @click="showExportModal = true"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg shadow transition font-bold text-sm ml-2 flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Excel出力
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar: User List -->
+            <aside class="w-56 bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden shrink-0">
+                <div class="p-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-2">
+                    <div class="flex justify-between items-center mb-1">
+                        <h2 class="font-bold text-gray-700 text-sm">利用者一覧 ({{ filteredUsers.length }})</h2>
+                        <button @click="openUserModal(null)"
+                            class="text-xs bg-white hover:bg-teal-50 text-teal-700 border border-teal-300 py-1 px-2 rounded font-bold shadow-sm transition flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4" />
+                            </svg>
+                            管理
+                        </button>
+                    </div>
+
+                    <div class="flex gap-1.5">
+                        <select v-model="filterUnit"
+                            class="flex-1 px-1.5 py-1 text-xs border border-gray-300 rounded bg-white outline-none focus:ring-1 focus:ring-teal-500">
+                            <option value="all">全ユニット</option>
+                            <option value="1ユニット">1ユニット</option>
+                            <option value="2ユニット">2ユニット</option>
+                            <option value="東ユニット">東ユニット</option>
+                        </select>
+                        <select v-model="sortKey"
+                            class="w-[72px] px-1.5 py-1 text-xs border border-gray-300 rounded bg-white outline-none focus:ring-1 focus:ring-teal-500">
+                            <option value="custom">手動並べ替え</option>
+                            <option value="number">番号順</option>
+                            <option value="name">名前順</option>
+                        </select>
+                    </div>
+
+                    <div class="relative mt-1">
+                        <input type="text" v-model="searchQuery" placeholder="名前・番号で検索..."
+                            class="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded text-xs outline-none focus:ring-1 focus:ring-teal-500 bg-white shadow-inner">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 absolute left-2 top-1.5"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto bg-white">
+                    <ul>
+                        <li v-for="user in filteredUsers" :key="user.id">
+                            <button @click="selectedUserId = user.id"
+                                :class="['w-full text-left px-3 py-2 border-b text-sm transition flex flex-col gap-1', selectedUserId === user.id ? 'bg-teal-50 border-l-4 border-l-teal-500' : 'bg-white text-gray-700 hover:bg-gray-50 border-l-4 border-l-transparent']">
+                                <div class="flex justify-between items-start w-full gap-1">
+                                    <div class="flex items-center gap-1.5 overflow-hidden">
+                                        <span v-if="user.number"
+                                            class="text-[10px] font-mono bg-gray-100 border border-gray-200 text-gray-600 px-1 py-0.5 rounded leading-none shrink-0">{{
+                                            user.number }}</span>
+                                        <span class="font-bold truncate"
+                                            :class="selectedUserId === user.id ? 'text-teal-900' : 'text-gray-800'">{{
+                                            user.name }} 様</span>
+                                    </div>
+                                    <span v-if="user.severeType || user.isSevere"
+                                        class="bg-red-50 text-red-600 text-[9px] font-bold px-1 py-0.5 rounded-sm whitespace-nowrap border border-red-200 shrink-0 leading-none mt-0.5"
+                                        title="重度加算">重度{{ user.severeType === '無印' || (!user.severeType &&
+                                        user.isSevere) ? '' : user.severeType }}</span>
+                                </div>
+                                <div class="flex justify-between items-center w-full mt-0.5">
+                                    <span v-if="user.unit"
+                                        class="text-[10px] text-gray-500 bg-gray-50 border border-gray-200 px-1 rounded-sm leading-tight">{{
+                                        user.unit }}</span>
+                                    <span v-if="user.isShuroB"
+                                        class="text-[9px] text-yellow-700 bg-yellow-100 border border-yellow-300 px-1 py-0.5 rounded-sm font-bold leading-tight ml-auto">就B({{
+                                        getShuroDaysText(user.shuroDays) }})</span>
+                                </div>
+                                <div v-if="user.notes" class="w-full mt-1">
+                                    <div
+                                        class="text-[10px] text-gray-600 bg-yellow-50/70 border border-yellow-200/60 p-1.5 rounded text-left leading-snug whitespace-pre-wrap">
+                                        {{ user.notes }}</div>
+                                </div>
+                            </button>
+                        </li>
+                    </ul>
+                    <div v-if="filteredUsers.length === 0" class="text-center text-xs text-gray-400 py-6">該当なし</div>
+                </div>
+            </aside>
+
+            <!-- Main Content: Check Sheet -->
+            <main
+                class="flex-1 overflow-hidden flex flex-col bg-gray-50 p-4 relative print:overflow-visible print:h-auto print:block">
+
+                <div v-if="selectedUser"
+                    class="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden max-h-full print:hidden">
+
+                    <!-- Toolbar & Legend -->
+                    <div class="p-3 border-b flex flex-col gap-2 bg-white z-10">
+                        <div class="flex justify-between items-start">
+                            <div class="flex flex-col gap-1">
+                                <h2 class="text-lg font-bold flex items-center gap-2">
+                                    <span
+                                        class="bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full text-xs font-bold">選択中</span>
+                                    {{ selectedUser.name }} 様
+                                    <span v-if="selectedUser.severeType || selectedUser.isSevere"
+                                        class="bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded text-[10px] font-bold ml-1"
+                                        title="重度加算">重度{{ selectedUser.severeType === '無印' || (!selectedUser.severeType
+                                        && selectedUser.isSevere) ? '' : selectedUser.severeType }}加算</span>
+                                    <span v-if="selectedUser.isShuroB"
+                                        class="bg-yellow-100 text-yellow-800 border border-yellow-300 px-1.5 py-0.5 rounded text-[10px] font-bold ml-1">就労継続B
+                                        ({{ getShuroDaysText(selectedUser.shuroDays) }})</span>
+                                </h2>
+                                <div v-if="selectedUser.notes"
+                                    class="text-xs text-gray-600 bg-yellow-50 pl-2 py-1 pr-3 rounded border-l-2 border-yellow-400 inline-block w-fit max-w-md whitespace-pre-wrap leading-tight mt-0.5">
+                                    {{ selectedUser.notes }}
+                                </div>
+                            </div>
+                            <div class="flex gap-2 items-center flex-wrap justify-end">
+                                <button @click="showBatchModal = true"
+                                    class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition shadow-sm flex items-center gap-1.5">
+                                    項目・食事の部分一括変更
+                                </button>
+                                <button @click="fillOperationDays"
+                                    class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition shadow-sm flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    全員の稼働日を一括（昼:●）
+                                </button>
+                                <button @click="fillNonOperationDays"
+                                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition shadow-sm flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    全員の非稼働日を一括（全:◎）
+                                </button>
+                                <button @click="openRangeCrossModal"
+                                    class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition shadow-sm flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    期間休（×）一括入力
+                                </button>
+                                <button @click="clearSelectedUser"
+                                    class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-xs font-semibold transition shadow-sm">
+                                    この人の入力をクリア
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- NEW Legend row inside toolbar -->
+                        <div
+                            class="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-gray-700 bg-teal-50/40 p-2 rounded border border-teal-100 items-center shadow-sm">
+                            <span class="font-bold mr-1 text-teal-800 flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                記号凡例
+                            </span>
+                            <div class="flex gap-2 items-center border-r border-teal-200 pr-3">
+                                <span class="text-gray-500">入所/日中:</span>
+                                <span><span class="text-blue-600 font-bold">○</span>利用</span>
+                                <span><span class="text-red-500 font-bold">×</span>未利用</span>
+                                <span><b>／</b>帰省等</span>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <span class="text-gray-500">食事:</span>
+                                <span><b>◎</b>入所 / <b>●</b>生介 / <b>△</b>就B</span>
+                                <span class="text-teal-200">|</span>
+                                <span><b>キ</b>入所ｷｬﾝｾﾙ / <b>㋖</b>生介ｷｬﾝｾﾙ / <b>▲</b>就Bｷｬﾝｾﾙ</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Area -->
+                    <div class="table-container flex-1 bg-gray-50 text-sm">
+                        <table class="w-full border-collapse" style="min-width: max-content;">
+                            <thead>
+                                <tr>
+                                    <th
+                                        class="sticky-col bg-gray-200 py-1.5 px-2 text-xs font-bold w-16 border-b-2 border-gray-300">
+                                        項目</th>
+                                    <th v-for="day in days" :key="day.d" @click="toggleOperationDay(day.date)"
+                                        :class="['border border-gray-300 p-1 min-w-[36px] text-center w-[36px] cursor-pointer hover:opacity-80 transition leading-tight', getHeaderDayClass(day)]"
+                                        title="クリックで稼働日/非稼働日を切り替え">
+                                        <div class="font-bold text-base">{{ day.d }}</div>
+                                        <div class="text-[10px]">{{ day.w }}</div>
+                                        <div class="text-[9px] mt-0.5 p-0.5 rounded"
+                                            :class="day.isOperation ? 'bg-teal-100 text-teal-800' : 'bg-red-100 text-red-800'">
+                                            {{ day.isOperation ? '稼働' : '非稼' }}
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 入所 -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white p-1.5 font-bold text-center border-b border-gray-300 text-gray-700 text-xs text-nowrap">
+                                        入所</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0', getCellDayClass(day)]">
+                                        <select v-model="getRecord(day.date).nyusho" class="cell-select font-bold">
+                                            <option value=""></option>
+                                            <option value="○" class="text-blue-600">○</option>
+                                            <option value="×" class="text-red-600">×</option>
+                                            <option value="／">／</option>
+                                        </select>
+                                    </td>
+                                </tr>
+
+                                <!-- 日中 -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white p-1.5 font-bold text-center border-b border-gray-300 text-gray-700 text-xs text-nowrap">
+                                        日中</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0', getCellDayClass(day)]">
+                                        <select v-model="getRecord(day.date).nicchu" class="cell-select font-bold">
+                                            <option value=""></option>
+                                            <option value="○" class="text-blue-600">○</option>
+                                            <option value="×" class="text-red-600">×</option>
+                                        </select>
+                                    </td>
+                                </tr>
+
+                                <!-- 食事(朝) -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white py-1 px-1 text-xs font-bold text-center border-b border-gray-200 text-gray-700 text-nowrap">
+                                        食事(朝)</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0 border-b-gray-200', getCellDayClass(day)]">
+                                        <select v-model="getRecord(day.date).mealM" class="cell-select">
+                                            <template v-for="opt in mealOptions">
+                                                <option :value="opt.val" :class="opt.class">{{ opt.label }}</option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <!-- 食事(昼) -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white py-1 px-1 text-xs font-bold text-center border-b border-gray-200 text-gray-700 text-nowrap">
+                                        食事(昼)</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0 border-b-gray-200', getCellDayClass(day)]">
+                                        <select v-model="getRecord(day.date).mealL" class="cell-select">
+                                            <template v-for="opt in mealOptions">
+                                                <option :value="opt.val" :class="opt.class">{{ opt.label }}</option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <!-- 食事(夕) -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white py-1 px-1 text-xs font-bold text-center border-b border-gray-300 text-gray-700 text-nowrap">
+                                        食事(夕)</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0 border-b-gray-300', getCellDayClass(day)]">
+                                        <select v-model="getRecord(day.date).mealD" class="cell-select">
+                                            <template v-for="opt in mealOptions">
+                                                <option :value="opt.val" :class="opt.class">{{ opt.label }}</option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+
+                                <!-- 備考 (各日の簡易メモ) -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white p-1 text-center border-b border-gray-300 text-gray-700 text-xs align-middle">
+                                        備考<br><span class="text-[9px] font-normal text-gray-400">帰省等</span></td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0 align-top', getCellDayClass(day)]">
+                                        <textarea v-model="getRecord(day.date).remarks"
+                                            class="w-full h-full min-h-[44px] resize-none border-none bg-transparent p-0.5 text-[10px] leading-tight outline-none focus:bg-blue-50 transition"
+                                            placeholder=".."></textarea>
+                                    </td>
+                                </tr>
+
+                                <!-- 夜勤者 -->
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td
+                                        class="sticky-col bg-white py-1 px-1 text-[11px] font-bold text-center border-b border-gray-300 text-gray-700 text-nowrap">
+                                        夜勤者</td>
+                                    <td v-for="day in days" :key="day.d"
+                                        :class="['border border-gray-300 p-0 border-b-gray-300', getCellDayClass(day)]">
+                                        <input type="text" v-model="getRecord(day.date).nightStaff"
+                                            class="w-full h-full border-none bg-transparent text-center text-[10px] font-bold text-indigo-700 outline-none focus:bg-blue-50 transition p-0.5 py-1"
+                                            placeholder="名前">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 全体備考欄（行事や特別な対応など） -->
+                    <div
+                        class="p-3 bg-white border-t border-gray-200 z-20 relative shadow-[0_-2px_10px_rgba(0,0,0,0.02)]">
+                        <label class="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1.5 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            全体の連絡事項・備考（行事・食事の特別な変更など） <span
+                                class="text-teal-600 bg-teal-50 px-1 py-0.5 rounded text-[10px] ml-1 border border-teal-200">※全利用者共通</span>
+                        </label>
+                        <textarea v-model="currentGlobalRemark"
+                            class="w-full h-12 min-h-[48px] p-2 border border-gray-300 rounded outline-none focus:ring-2 focus:ring-teal-500 resize-y text-sm transition"
+                            placeholder="例: 5月15日 ○○イベントため、ユニット全員昼食×"></textarea>
+                    </div>
+                </div>
+
+                <div v-else class="flex-1 flex items-center justify-center text-gray-400 h-full print:hidden">
+                    <p class="text-lg">左から利用者を選択してください</p>
+                </div>
+
+                <!-- 印刷用隠しエリア -->
+                <div id="pdfExportArea" class="hidden print:block pdf-area absolute top-0 left-0 w-full z-50 bg-white">
+                    <div id="pdfContentWrapper">
+                        <!-- 8人ずつのチャンクと前半(1-16日)・後半(17-末日)でページを分ける -->
+                        <template v-for="(chunk, pageIndex) in userChunks" :key="'page'+pageIndex">
+                            <div v-for="(daySubset, halfIndex) in dayHalves" :key="'half'+pageIndex+'-'+halfIndex"
+                                class="page-break flex flex-col w-full bg-white relative pt-4 pb-2 px-6"
+                                style="min-height: 100vh;">
+
+                                <!-- Header -->
+                                <div class="flex justify-between items-end mb-2 border-b-2 border-gray-800 pb-1">
+                                    <h1 class="text-xl font-bold text-gray-800 tracking-wider">
+                                        サービスチェック表 <span class="text-base font-normal ml-2">({{ currentYear }}年 {{
+                                            currentMonth }}月 {{ getHalfLabel(daySubset) }})</span>
+                                    </h1>
+                                    <div class="text-[10px] text-gray-600 font-bold">
+                                        出力日時: {{ printDateText }} / ユニット: {{ filterUnit === 'all' ? '全員' : filterUnit }}
+                                        <span class="ml-2">({{ pageIndex * dayHalves.length + halfIndex + 1 }} / {{
+                                            userChunks.length * dayHalves.length }} ページ)</span>
+                                    </div>
+                                </div>
+
+
+
+                                <div class="flex flex-1" style="height: calc(100% - 70px);">
+                                    <!-- 左：メインの表 -->
+                                    <div class="flex-1" style="width: 87%;">
+                                        <table class="print-table text-[13px]">
+                                            <thead>
+                                                <tr>
+                                                    <th class="w-24 bg-gray-100 border-r-2 border-gray-800 text-[13px]">利用者名</th>
+                                                    <th class="w-10 bg-gray-100 text-[12px]">項目</th>
+                                                    <th v-for="day in daySubset" :key="'h'+day.d"
+                                                        :class="getCellDayClass(day)" class="w-auto"
+                                                        style="padding: 1px 0 !important;">
+                                                        <div class="font-bold text-[13px] leading-none flex items-center justify-center">
+                                                            <span>{{ day.d }}</span><span class="text-[9px] font-normal tracking-tighter">{{ day.w }}</span>
+                                                        </div>
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template v-for="(user, uIdx) in chunk" :key="'pu'+user.id">
+                                                    <!-- Row 1: 入所 -->
+                                                    <tr>
+                                                        <td rowspan="6"
+                                                            class="font-bold text-left px-1 border-r-2 border-b-2 border-gray-800 align-top pt-1 bg-white relative w-24">
+                                                            <div
+                                                                class="flex flex-col h-full justify-start text-[13px] leading-tight break-words">
+                                                                <div
+                                                                    class="font-bold text-gray-900 border-b border-gray-200 pb-0.5 mb-0.5 text-[14px]">
+                                                                    <span v-if="user.number" class="text-[11px] font-mono border border-gray-300 px-0.5 mr-0.5">{{ user.number }}</span>{{ user.name }} 様</div>
+                                                                <div class="text-[11px] text-gray-500 font-normal">
+                                                                    <span v-if="user.unit">{{ user.unit }}</span>
+                                                                    <span v-if="user.severeType || user.isSevere"
+                                                                        class="ml-0.5 text-red-700 bg-red-50 px-0.5 border border-red-200">重度{{
+                                                                        user.severeType === '無印' || (!user.severeType &&
+                                                                        user.isSevere) ? '' : user.severeType }}</span>
+                                                                </div>
+                                                                <div v-if="user.isShuroB"
+                                                                    class="text-[11px] text-yellow-700 mt-0.5 break-words">
+                                                                    就B({{ getShuroDaysText(user.shuroDays) }})</div>
+                                                                <div v-if="user.notes"
+                                                                    class="text-[10px] text-gray-600 mt-0.5 leading-none break-words whitespace-pre-wrap">
+                                                                    {{ user.notes }}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[12px]">入所
+                                                        </td>
+                                                        <td v-for="day in daySubset" :key="'in'+day.d"
+                                                            :class="getCellDayClass(day)" class="text-[14px] font-bold" style="padding:1px !important;">
+                                                            {{ getRecordForUser(user.id, day.date).nyusho || '' }}</td>
+                                                    </tr>
+                                                    <!-- Row 2: 日中 -->
+                                                    <tr>
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[12px]">日中
+                                                        </td>
+                                                        <td v-for="day in daySubset" :key="'out'+day.d"
+                                                            :class="getCellDayClass(day)" class="text-[14px] font-bold" style="padding:1px !important;">
+                                                            {{ getRecordForUser(user.id, day.date).nicchu || '' }}</td>
+                                                    </tr>
+                                                    <!-- Row 3: 朝食 -->
+                                                    <tr>
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[12px]">朝食
+                                                        </td>
+                                                        <td v-for="day in daySubset" :key="'mm'+day.d"
+                                                            :class="getCellDayClass(day)" class="text-[14px] font-bold" style="padding:1px !important;">
+                                                            {{ getRecordForUser(user.id, day.date).mealM || '' }}</td>
+                                                    </tr>
+                                                    <!-- Row 4: 昼食 -->
+                                                    <tr>
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[12px]">昼食
+                                                        </td>
+                                                        <td v-for="day in daySubset" :key="'ml'+day.d"
+                                                            :class="getCellDayClass(day)" class="text-[14px] font-bold" style="padding:1px !important;">
+                                                            {{ getRecordForUser(user.id, day.date).mealL || '' }}</td>
+                                                    </tr>
+                                                    <!-- Row 5: 夕食 -->
+                                                    <tr>
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[12px]">夕食
+                                                        </td>
+                                                        <td v-for="day in daySubset" :key="'md'+day.d"
+                                                            :class="getCellDayClass(day)"
+                                                            class="text-[14px] font-bold border-b border-gray-400" style="padding:1px !important;">{{
+                                                            getRecordForUser(user.id, day.date).mealD || '' }}</td>
+                                                    </tr>
+                                                    <!-- Row 6: 備考 -->
+                                                    <tr class="border-b-2 border-gray-800" style="height: 16px;">
+                                                        <td class="bg-gray-50 border-r border-gray-400 text-[11px] leading-tight align-middle text-center"
+                                                            style="padding: 1px !important;">備考<br>帰省</td>
+                                                        <td v-for="day in daySubset" :key="'rm'+day.d"
+                                                            :class="getCellDayClass(day)"
+                                                            class="text-[10px] leading-none align-middle p-0">
+                                                            <div class="mx-auto font-normal break-words whitespace-pre-wrap"
+                                                                style="max-width:28px; word-break: break-all; line-height: 1;">{{ getCellRemarkDisplay(user.id, day.date, chunk, daySubset) }}</div>
+                                                        </td>
+                                                    </tr>
+                                                </template>
+                                                <!-- 夜勤者共通部分 -->
+                                                <tr>
+                                                    <td colspan="2" class="bg-gray-100 border-r-2 border-gray-800 text-[13px] font-bold text-center py-1">夜勤者</td>
+                                                    <td v-for="day in daySubset" :key="'night-cm'+day.d" :class="getCellDayClass(day)" class="text-[13px] font-bold text-center border-r border-gray-400 bg-white" style="padding: 1px !important;">
+                                                        {{ getCommonNightStaff(day.date) }}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div><!-- end 左表 -->
+
+                                    <!-- 右：共通連絡備考欄 -->
+                                    <div class="border border-gray-800 bg-yellow-50 flex flex-col"
+                                        style="width: 13%; min-width: 80px; margin-left: 2px;">
+                                        <div
+                                            class="font-bold text-[13px] text-gray-800 border-b border-gray-600 text-center py-0.5 bg-yellow-100">
+                                            全体の連絡事項・備考</div>
+                                        <div class="text-[12px] p-1 leading-snug break-words flex-1 flex flex-col gap-1"
+                                            style="overflow: hidden;">
+                                            <div class="whitespace-pre-wrap">{{ currentGlobalRemark || '（なし）' }}</div>
+                                            <!-- フットノート部分 -->
+                                            <div v-if="getPageFootnotes(chunk, daySubset).length > 0" class="mt-1 border-t border-gray-400 pt-1">
+                                                <div class="text-[10px] font-bold text-gray-700 mb-0.5">【個別注釈】</div>
+                                                <div v-for="(fn, i) in getPageFootnotes(chunk, daySubset)" :key="'fn'+i" class="text-[9px] leading-tight mb-0.5 whitespace-normal">
+                                                    <span class="font-bold text-red-600">※{{ i + 1 }}</span> {{ fn.display }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div><!-- end 右備考 -->
+                                </div><!-- end flex -->
+                            </div><!-- end page-break container -->
+                        </template>
+
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- User Management Modal -->
+        <div v-if="showUserModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+            @click.self="closeUserModal">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 class="text-inherit font-bold text-gray-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-teal-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        利用者管理
+                    </h3>
+                    <button @click="closeUserModal" class="text-gray-400 hover:text-gray-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="flex p-4 gap-4 overflow-hidden h-full max-h-[60vh] flex-col md:flex-row bg-gray-100/50">
+                    <!-- Left: User List -->
+                    <div
+                        class="w-full md:w-1/2 bg-white border border-gray-200 rounded-lg flex flex-col overflow-hidden shadow-sm">
+                        <div
+                            class="bg-gray-50 p-2.5 font-bold text-sm text-gray-700 border-b border-gray-200 flex justify-between items-center">
+                            <span>登録済み ({{ filteredUsers.length }}名)</span>
+                            <button @click="openUserModal(null)"
+                                class="text-xs bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1.5 rounded shadow-sm transition focus:ring-2 focus:ring-teal-500">+
+                                新規追加</button>
+                        </div>
+                        <div class="overflow-y-auto flex-1 p-2 flex flex-col gap-1.5">
+                            <div v-for="u in filteredUsers" :key="u.id" @click="openUserModal(u)" draggable="true"
+                                @dragstart="dragStart($event, u)" @dragover.prevent="dragOver($event)"
+                                @drop="drop($event, u)" @dragenter.prevent
+                                :class="['p-2 rounded border cursor-pointer transition flex items-center gap-2', editingUser.id === u.id ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-white border-gray-200 hover:border-teal-300 hover:bg-gray-50']">
+
+                                <!-- ドラッグハンドル -->
+                                <div class="text-gray-300 hover:text-gray-500 cursor-grab shrink-0 py-2"
+                                    title="ドラッグして並べ替え">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 8h16M4 16h16" />
+                                    </svg>
+                                </div>
+
+                                <div class="flex flex-col gap-0.5 flex-1">
+                                    <div class="flex items-center gap-1.5">
+                                        <span
+                                            class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1 py-0.5 rounded leading-none">{{
+                                            u.number }}</span>
+                                        <span class="font-bold text-sm text-gray-800">{{ u.name }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span
+                                            class="text-[10px] text-gray-500 bg-gray-50 border border-gray-200 px-1 rounded-sm">{{
+                                            u.unit }}</span>
+                                        <span v-if="u.severeType || u.isSevere"
+                                            class="text-[9px] text-red-600 bg-red-50 border border-red-200 px-1 rounded-sm leading-tight font-bold">重度{{
+                                            u.severeType === '無印' || (!u.severeType && u.isSevere) ? '' : u.severeType
+                                            }}加算</span>
+                                        <span v-if="u.isShuroB"
+                                            class="text-[9px] text-yellow-700 bg-yellow-100 border border-yellow-300 px-1 rounded-sm leading-tight font-bold">就B({{
+                                            getShuroDaysText(u.shuroDays) }})</span>
+                                    </div>
+                                    <div v-if="u.notes"
+                                        class="text-[9px] text-gray-500 mt-1 line-clamp-1 bg-yellow-50 px-1 rounded w-full">
+                                        {{ u.notes }}</div>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 shrink-0 ml-1"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                            <div v-if="filteredUsers.length === 0" class="text-center text-sm text-gray-400 py-6">
+                                該当する利用者がいません</div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Edit Form -->
+                    <div
+                        class="w-full md:w-1/2 bg-white border border-gray-200 rounded-lg p-5 flex flex-col gap-4 overflow-y-auto relative shadow-sm">
+                        <h4
+                            class="font-bold text-gray-800 text-lg border-b border-gray-200 pb-3 flex items-center justify-between">
+                            {{ editingUser.id ? '利用者情報の編集' : '新規利用者の追加' }}
+                            <button v-if="editingUser.id" @click="deleteUser(editingUser.id)"
+                                class="text-xs text-red-600 hover:text-white px-2.5 py-1.5 bg-red-50 hover:bg-red-600 rounded transition border border-red-200 hover:border-red-600">
+                                削除
+                            </button>
+                        </h4>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-bold text-gray-700">利用者番号 <span
+                                    class="text-gray-400 font-normal text-xs ml-1">(任意)</span></label>
+                            <input type="text" v-model="editingUser.number" placeholder="例: 001"
+                                class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm transition">
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-bold text-gray-700">名前 <span
+                                    class="text-red-500 ml-1">*</span></label>
+                            <input type="text" v-model="editingUser.name" placeholder="例: 山田 太郎"
+                                class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm transition"
+                                ref="nameInput">
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-bold text-gray-700">ユニット設定</label>
+                            <select v-model="editingUser.unit"
+                                class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm bg-white transition">
+                                <option value="1ユニット">1ユニット</option>
+                                <option value="2ユニット">2ユニット</option>
+                                <option value="東ユニット">東ユニット</option>
+                                <option value="未設定">未設定</option>
+                            </select>
+                        </div>
+
+                        <div
+                            class="flex flex-col gap-1.5 mt-2 p-3 bg-red-50 border border-red-100 rounded-lg transition">
+                            <label class="text-sm font-bold text-red-800">重度加算</label>
+                            <select v-model="editingUser.severeType"
+                                class="w-full p-2.5 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm bg-white transition">
+                                <option value="">なし</option>
+                                <option value="無印">重度（無印）</option>
+                                <option value="Ⅱ">重度 Ⅱ</option>
+                                <option value="Ⅱ18以上">重度 Ⅱ (18以上)</option>
+                                <option value="Ⅲ">重度 Ⅲ</option>
+                            </select>
+                        </div>
+
+                        <div
+                            class="flex flex-col gap-2 mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-lg transition">
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox" id="shuroInput" v-model="editingUser.isShuroB"
+                                    class="w-5 h-5 text-yellow-600 rounded border-gray-300 focus:ring-yellow-500 cursor-pointer">
+                                <label for="shuroInput"
+                                    class="text-sm font-bold text-yellow-800 cursor-pointer flex-1 select-none">就労継続Bの対象（稼働日の昼食を△にする）</label>
+                            </div>
+                            <div v-if="editingUser.isShuroB"
+                                class="mt-1 pt-2 border-t border-yellow-200 flex flex-col gap-1.5">
+                                <label class="text-xs font-bold text-yellow-800 mb-0.5">自動入力で「△」となる曜日</label>
+                                <div class="flex flex-wrap gap-x-3 gap-y-2">
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="1"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        月</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="2"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        火</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="3"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        水</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="4"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        木</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="5"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        金</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="6"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        土</label>
+                                    <label
+                                        class="flex items-center gap-1 cursor-pointer text-xs font-bold text-gray-700 hover:text-yellow-700"><input
+                                            type="checkbox" v-model="editingUser.shuroDays" :value="0"
+                                            class="text-yellow-600 focus:ring-yellow-500 rounded cursor-pointer border-gray-300 border">
+                                        日</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 mt-1">
+                            <label class="text-sm font-bold text-gray-700">利用者の固定メモ・注釈 <span
+                                    class="text-gray-400 font-normal text-xs ml-1">(名前の下に継続表示されます)</span></label>
+                            <textarea v-model="editingUser.notes" placeholder="例: 月水金のみ就Bへ通所、など..."
+                                class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm bg-white transition min-h-[60px] resize-y"></textarea>
+                        </div>
+
+                        <div class="mt-auto pt-4 flex justify-end gap-2">
+                            <button @click="openUserModal(null)" v-if="editingUser.id"
+                                class="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-bold transition">キャンセル・新規へ</button>
+                            <button @click="saveUser"
+                                class="px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-bold shadow transition flex items-center gap-2">
+                                <svg v-if="editingUser.id" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                {{ editingUser.id ? '更新を保存' : '追加する' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Batch Meal Update Modal -->
+        <div v-if="showBatchModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+            @click.self="showBatchModal = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+                <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-orange-50">
+                    <h3 class="font-bold text-orange-800 text-sm flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        項目や食事の部分一括変更
+                    </h3>
+                    <button @click="showBatchModal = false" class="text-gray-400 hover:text-gray-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="p-4 flex flex-col gap-3">
+                    <div class="text-xs text-gray-600 -mt-1">指定した日・ユニットの項目を一括で書き換えます。</div>
+
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-gray-700">対象の日にち ({{ currentMonth }}月)</label>
+                        <select v-model="batchConfig.day"
+                            class="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm bg-white">
+                            <option v-for="d in days" :key="d.d" :value="d.d">{{ d.d }}日 ({{ d.w }})</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-gray-700">対象ユニット</label>
+                        <select v-model="batchConfig.unit"
+                            class="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm bg-white">
+                            <option value="all">全員 (全ユニット)</option>
+                            <option value="1ユニット">1ユニットのみ</option>
+                            <option value="2ユニット">2ユニットのみ</option>
+                            <option value="東ユニット">東ユニットのみ</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-gray-700">対象の項目</label>
+                        <select v-model="batchConfig.mealType"
+                            class="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm bg-white">
+                            <option value="mealM">食事(朝)</option>
+                            <option value="mealL">食事(昼)</option>
+                            <option value="mealD">食事(夕)</option>
+                            <option value="nightStaff">夜勤者</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1" v-if="batchConfig.mealType !== 'nightStaff'">
+                        <label class="text-xs font-bold text-gray-700">変更後の記号</label>
+                        <select v-model="batchConfig.value"
+                            class="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm bg-white">
+                            <option v-for="opt in mealOptions" :key="opt.val" :value="opt.val">{{ opt.label || '(空欄にする)'
+                                }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1" v-if="batchConfig.mealType === 'nightStaff'">
+                        <label class="text-xs font-bold text-gray-700">夜勤者の名前</label>
+                        <input type="text" v-model="batchConfig.textValue"
+                            class="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm bg-white"
+                            placeholder="例：鈴木">
+                    </div>
+
+                    <div class="mt-2 flex justify-end gap-2 pt-3 border-t">
+                        <button @click="showBatchModal = false"
+                            class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50 text-xs font-bold transition">キャンセル</button>
+                        <button @click="executeBatchMeal"
+                            class="px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-bold shadow transition">
+                            一括変更を実行
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Range Cross (Leave) Modal -->
+        <div v-if="showRangeLeaveModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+            @click.self="showRangeLeaveModal = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+                <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-purple-50">
+                    <h3 class="font-bold text-purple-800 text-sm flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        期間休（×）の一括入力
+                    </h3>
+                    <button @click="showRangeLeaveModal = false" class="text-gray-400 hover:text-gray-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="p-4 flex flex-col gap-3">
+                    <div class="text-xs text-gray-600 -mt-1 font-bold text-teal-700">{{ selectedUser ? selectedUser.name
+                        :
+                        '' }} 様</div>
+                    <div class="text-[11px] text-gray-500 mb-1">指定した期間の入所・日中・食事に「×」を入力します。</div>
+
+                    <div class="flex items-center gap-2">
+                        <div class="flex flex-col gap-1 flex-1">
+                            <label class="text-xs font-bold text-gray-700">開始日</label>
+                            <select v-model="rangeLeaveConfig.start"
+                                class="w-full p-2 border border-purple-200 rounded focus:ring-1 focus:ring-purple-500 outline-none text-sm bg-white">
+                                <option v-for="d in days" :key="d.d" :value="d.d">{{ d.d }}日 ({{ d.w }})</option>
+                            </select>
+                        </div>
+                        <span class="mt-5 font-bold text-gray-400">〜</span>
+                        <div class="flex flex-col gap-1 flex-1">
+                            <label class="text-xs font-bold text-gray-700">終了日</label>
+                            <select v-model="rangeLeaveConfig.end"
+                                class="w-full p-2 border border-purple-200 rounded focus:ring-1 focus:ring-purple-500 outline-none text-sm bg-white">
+                                <option v-for="d in days" :key="d.d" :value="d.d">{{ d.d }}日 ({{ d.w }})</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex justify-end gap-2 pt-3 border-t border-gray-100">
+                        <button @click="showRangeLeaveModal = false"
+                            class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50 text-xs font-bold transition">キャンセル</button>
+                        <button @click="executeRangeLeave"
+                            class="px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 text-xs font-bold shadow transition flex items-center gap-1">
+                            一括入力する
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Export Modal -->
+        <div v-if="showExportModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+            @click.self="showExportModal = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+                <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-blue-50">
+                    <h3 class="font-bold text-blue-800 text-sm flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel出力の期間選択
+                    </h3>
+                    <button @click="showExportModal = false" class="text-gray-400 hover:text-gray-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="p-4 flex flex-col gap-2">
+                    <p class="text-xs text-gray-600 font-bold mb-2">出力する期間を選んでください。</p>
+                    <button @click="exportToExcel('first')"
+                        class="w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 text-sm font-bold transition flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                        前半を出力 （1日〜15日）
+                    </button>
+                    <button @click="exportToExcel('second')"
+                        class="w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 text-sm font-bold transition flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                        後半を出力 （16日〜末日）
+                    </button>
+                    <button @click="exportToExcel('all')"
+                        class="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-bold transition mt-2 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        今月全てを出力
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 印刷期間選択モーダル -->
+        <div v-if="showPrintModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+            @click.self="showPrintModal = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden">
+                <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-red-50">
+                    <h3 class="font-bold text-red-800 text-sm flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        印刷・PDF保存の期間選択
+                    </h3>
+                    <button @click="showPrintModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 flex flex-col gap-2">
+                    <p class="text-xs text-gray-600 font-bold mb-2">出力する期間を選んでください。</p>
+                    <button @click="executePrint('first')"
+                        class="w-full px-4 py-2 border border-red-200 bg-red-50 text-red-800 rounded-lg hover:bg-red-100 text-sm font-bold transition flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                        前半を印刷（1日〜16日）
+                    </button>
+                    <button @click="executePrint('second')"
+                        class="w-full px-4 py-2 border border-red-200 bg-red-50 text-red-800 rounded-lg hover:bg-red-100 text-sm font-bold transition flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                        後半を印刷（17日〜末日）
+                    </button>
+                    <button @click="executePrint('all')"
+                        class="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-bold transition mt-2 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                        全て印刷（前半＋後半）
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                // Set default month to current month
+                const today = new Date();
+
+                return {
+                    users: [],
+                    selectedUserId: null,
+                    currentYear: today.getFullYear(),
+                    currentMonth: today.getMonth() + 1,
+                    records: {}, // Format: { "userID_YYYY-MM-DD": { nyusho: '', nicchu: '', mealM:'', ... } }
+                    globalUserRemarks: {}, // Format: { "YYYY-MM": "remarks text" } (全利用者共通)
+                    mealOptions: [
+                        { val: '', label: '', class: '' },
+                        { val: '●', label: '● (生介)', class: 'font-bold text-gray-800 bg-yellow-100' },
+                        { val: '◎', label: '◎ (入所)', class: 'font-bold text-gray-800' },
+                        { val: '△', label: '△ (就B)', class: 'font-bold text-gray-800' },
+                        { val: '㋖', label: '㋖', class: 'text-red-600 text-sm' },
+                        { val: 'キ', label: 'キ', class: 'text-red-600 text-sm' },
+                        { val: '▲', label: '▲', class: 'text-red-600 text-sm' },
+                        { val: '×', label: '×', class: 'text-red-600' }
+                    ],
+                    // Custom operation days (overrides default Sat/Sun/Holiday logic)
+                    // Format: { "YYYY-MM-DD": boolean }
+                    customOperationDays: {},
+                    saveStatus: '', // for auto-save notification
+                    saveTimeout: null,
+
+                    // User Management State
+                    searchQuery: '',
+                    filterUnit: 'all',
+                    sortKey: 'number',
+                    showUserModal: false,
+                    editingUser: { id: null, number: '', name: '', unit: '1ユニット', isSevere: false, severeType: '', isShuroB: false, shuroDays: [1, 2, 3, 4, 5], notes: '' },
+
+                    showBatchModal: false,
+                    batchConfig: { day: 1, unit: '1ユニット', mealType: 'mealL', value: '×', textValue: '' },
+
+                    showRangeLeaveModal: false,
+                    rangeLeaveConfig: { start: 1, end: 1 },
+
+                    showExportModal: false,
+                    showPrintModal: false,
+                    printPeriod: 'all',
+                    isGeneratingPDF: false,
+                    printDateText: ''
+                }
+            },
+            computed: {
+                selectedUser() {
+                    return this.users.find(u => u.id === this.selectedUserId);
+                },
+                filteredUsers() {
+                    let result = [...this.users];
+                    if (this.filterUnit !== 'all') {
+                        result = result.filter(u => u.unit === this.filterUnit);
+                    }
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase();
+                        result = result.filter(u =>
+                            (u.name && u.name.toLowerCase().includes(q)) ||
+                            (u.number && String(u.number).includes(q))
+                        );
+                    }
+                    if (this.sortKey === 'custom') {
+                        return result; // 元の配列順序（ドラッグ＆ドロップ用）
+                    }
+                    result.sort((a, b) => {
+                        let valA = a[this.sortKey] || '';
+                        let valB = b[this.sortKey] || '';
+                        if (this.sortKey === 'number') {
+                            return String(valA).localeCompare(String(valB), undefined, { numeric: true });
+                        } else {
+                            return String(valA).localeCompare(String(valB));
+                        }
+                    });
+                    return result;
+                },
+                currentGlobalRemark: {
+                    get() {
+                        const key = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}`;
+                        return this.globalUserRemarks[key] || '';
+                    },
+                    set(value) {
+                        const key = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}`;
+                        this.globalUserRemarks[key] = value;
+                    }
+                },
+                days() {
+                    const daysInMonth = new Date(this.currentYear, this.currentMonth, 0).getDate();
+                    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                    let result = [];
+                    for (let i = 1; i <= daysInMonth; i++) {
+                        const dateObj = new Date(this.currentYear, this.currentMonth - 1, i);
+                        const dayOfWeek = dateObj.getDay();
+                        // Formatting date string as YYYY-MM-DD for record keys
+                        const dateStr = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+
+                        // Detect Japanese holidays (Simplified mock: check if valid holiday or just standard weekends)
+                        const isHolidayMock = false; // In a real app, integrate a holiday calendar API
+
+                        // 稼働日判定: カスタム設定があれば優先、なければ土日祝以外を稼働日とする
+                        let isOperation = true;
+                        if (this.customOperationDays[dateStr] !== undefined) {
+                            isOperation = this.customOperationDays[dateStr];
+                        } else {
+                            // Default: 平日が稼働日
+                            isOperation = (!isHolidayMock && dayOfWeek !== 0 && dayOfWeek !== 6);
+                        }
+
+                        result.push({
+                            d: i,
+                            w: dayNames[dayOfWeek],
+                            dayIndex: dayOfWeek,
+                            date: dateStr,
+                            isHoliday: isHolidayMock || dayOfWeek === 0, // Sunday or Holiday
+                            isSaturday: dayOfWeek === 6,
+                            isOperation: isOperation
+                        });
+                    }
+                    return result;
+                },
+                userChunks() {
+                    const chunkSize = 7;
+                    const chunks = [];
+                    for (let i = 0; i < this.filteredUsers.length; i += chunkSize) {
+                        chunks.push(this.filteredUsers.slice(i, i + chunkSize));
+                    }
+                    return chunks.length > 0 ? chunks : [[]];
+                },
+                dayHalves() {
+                    // printPeriodに応じて前半・後半・全てを切り替え
+                    if (this.printPeriod === 'first') {
+                        return [this.days.filter(d => d.d <= 16)];
+                    } else if (this.printPeriod === 'second') {
+                        return [this.days.filter(d => d.d >= 17)];
+                    } else {
+                        // 全て: 前半と後半の2分割
+                        return [
+                            this.days.filter(d => d.d <= 16),
+                            this.days.filter(d => d.d >= 17)
+                        ];
+                    }
+                },
+                printDate() {
+                    const now = new Date();
+                    return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                }
+            },
+            watch: {
+                // Watch for deep changes in records, remarks, and custom days to auto-save
+                users: {
+                    deep: true,
+                    handler() { this.triggerAutoSave(); }
+                },
+                records: {
+                    deep: true,
+                    handler() { this.triggerAutoSave(); }
+                },
+                globalUserRemarks: {
+                    deep: true,
+                    handler() { this.triggerAutoSave(); }
+                },
+                customOperationDays: {
+                    deep: true,
+                    handler() { this.triggerAutoSave(); }
+                },
+                sortKey: {
+                    handler() { this.triggerAutoSave(); }
+                }
+            },
+            mounted() {
+                // Load data from LocalStorage when the app starts
+                this.loadData();
+            },
+            methods: {
+                triggerAutoSave() {
+                    // Debounce saving: wait 1.5 seconds after final typing before saving to LocalStorage
+                    if (this.saveTimeout) {
+                        clearTimeout(this.saveTimeout);
+                    }
+                    this.saveTimeout = setTimeout(() => {
+                        this.saveData(true);
+                    }, 1500);
+                },
+                saveData(isAuto = false) {
+                    try {
+                        const saveData = {
+                            users: this.users,
+                            records: this.records,
+                            globalUserRemarks: this.globalUserRemarks,
+                            customOperationDays: this.customOperationDays,
+                            sortKey: this.sortKey
+                        };
+                        localStorage.setItem('serviceChecklistData_v1', JSON.stringify(saveData));
+
+                        // Show notification
+                        this.saveStatus = isAuto ? '自動保存されました' : '保存しました';
+                        setTimeout(() => { this.saveStatus = ''; }, 2500);
+                    } catch (e) {
+                        console.error('保存エラー:', e);
+                        if (!isAuto) alert('保存に失敗しました。容量オーバーの可能性があります。');
+                    }
+                },
+                loadData() {
+                    try {
+                        const savedDataJSON = localStorage.getItem('serviceChecklistData_v1');
+                        if (savedDataJSON) {
+                            const savedData = JSON.parse(savedDataJSON);
+                            if (savedData.users && savedData.users.length > 0) {
+                                savedData.users.forEach(u => {
+                                    if (u.isSevere && !u.severeType) {
+                                        u.severeType = '無印';
+                                    } else if (!u.severeType) {
+                                        u.severeType = '';
+                                    }
+                                    if (u.isShuroB === undefined) u.isShuroB = false;
+                                    if (u.shuroDays === undefined) u.shuroDays = [1, 2, 3, 4, 5];
+                                    if (u.notes === undefined) u.notes = '';
+                                });
+                                this.users = savedData.users;
+                            } else {
+                                this.initDummyUsers();
+                            }
+                            if (savedData.records) this.records = savedData.records;
+                            if (savedData.globalUserRemarks) this.globalUserRemarks = savedData.globalUserRemarks;
+                            if (savedData.customOperationDays) this.customOperationDays = savedData.customOperationDays;
+                            if (savedData.sortKey) this.sortKey = savedData.sortKey;
+                        } else {
+                            this.initDummyUsers();
+                        }
+
+                        // Select first user if any
+                        if (this.users.length > 0 && !this.selectedUserId) {
+                            this.selectedUserId = this.users[0].id;
+                        }
+                    } catch (e) {
+                        console.error('読み込みエラー:', e);
+                        this.initDummyUsers();
+                    }
+                },
+                initDummyUsers() {
+                    const dummy = [];
+                    for (let i = 1; i <= 10; i++) {
+                        let unit = i <= 3 ? '1ユニット' : (i <= 6 ? '2ユニット' : '東ユニット');
+                        dummy.push({
+                            id: i,
+                            number: String(i).padStart(3, '0'),
+                            name: `利用者 ${i}`,
+                            unit: unit,
+                            isSevere: false,
+                            severeType: (i % 4 === 0) ? '無印' : '',
+                            isShuroB: i === 2,
+                            shuroDays: (i === 2) ? [1, 3, 5] : [1, 2, 3, 4, 5],
+                            notes: (i === 2) ? '月水金のみ就労継続Bへ参加' : ''
+                        });
+                    }
+                    dummy[0].name = "山田 太郎";
+                    dummy[1].name = "佐藤 花子";
+                    this.users = dummy;
+                },
+                openUserModal(user = null) {
+                    if (user) {
+                        this.editingUser = { ...user };
+                    } else {
+                        // Get next unused number basically
+                        let nextNum = '';
+                        if (this.users.length > 0) {
+                            let maxNum = Math.max(...this.users.map(u => parseInt(u.number) || 0));
+                            nextNum = String(maxNum + 1).padStart(3, '0');
+                        } else {
+                            nextNum = '001';
+                        }
+                        this.editingUser = { id: null, number: nextNum, name: '', unit: '1ユニット', isSevere: false, severeType: '', isShuroB: false, shuroDays: [1, 2, 3, 4, 5], notes: '' };
+                    }
+                    if (this.editingUser.isSevere && !this.editingUser.severeType) {
+                        this.editingUser.severeType = '無印';
+                    }
+                    this.showUserModal = true;
+                    // Focus name input if possible
+                    setTimeout(() => {
+                        if (this.$refs.nameInput) this.$refs.nameInput.focus();
+                    }, 100);
+                },
+                closeUserModal() {
+                    this.showUserModal = false;
+                },
+                saveUser() {
+                    if (!this.editingUser.name.trim()) {
+                        alert("名前を入力してください。");
+                        return;
+                    }
+                    if (this.editingUser.id) {
+                        const index = this.users.findIndex(u => u.id === this.editingUser.id);
+                        if (index !== -1) {
+                            this.users[index] = { ...this.editingUser };
+                        }
+                    } else {
+                        const newId = Date.now();
+                        this.users.push({ ...this.editingUser, id: newId });
+                        if (!this.selectedUserId) this.selectedUserId = newId;
+                    }
+                    this.closeUserModal();
+                    this.triggerAutoSave();
+                },
+                deleteUser(id) {
+                    if (confirm("この利用者を削除しますか？\n（関連するチェック表の記録もすべて見えなくなります）")) {
+                        this.users = this.users.filter(u => u.id !== id);
+                        if (this.selectedUserId === id) {
+                            this.selectedUserId = this.users.length > 0 ? this.users[0].id : null;
+                        }
+                        this.closeUserModal();
+                        this.triggerAutoSave();
+                    }
+                },
+                dragStart(event, user) {
+                    // 自動でカスタムソートに切り替え
+                    this.sortKey = 'custom';
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', user.id);
+                },
+                dragOver(event) {
+                    event.dataTransfer.dropEffect = 'move';
+                },
+                drop(event, dropUser) {
+                    const dragIdStr = event.dataTransfer.getData('text/plain');
+                    if (!dragIdStr) return;
+
+                    const dragId = parseInt(dragIdStr, 10);
+                    if (dragId === dropUser.id) return;
+
+                    const dragIndex = this.users.findIndex(u => u.id === dragId);
+                    const dropIndex = this.users.findIndex(u => u.id === dropUser.id);
+
+                    if (dragIndex !== -1 && dropIndex !== -1) {
+                        const movedItem = this.users.splice(dragIndex, 1)[0];
+                        this.users.splice(dropIndex, 0, movedItem);
+                        this.triggerAutoSave();
+                    }
+                },
+                executeBatchMeal() {
+                    const targetDateStr = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(this.batchConfig.day).padStart(2, '0')}`;
+                    let targetUsers = this.users;
+                    if (this.batchConfig.unit !== 'all') {
+                        targetUsers = targetUsers.filter(u => u.unit === this.batchConfig.unit);
+                    }
+
+                    const unitText = this.batchConfig.unit === 'all' ? '全員' : this.batchConfig.unit;
+                    let targetField = this.batchConfig.mealType;
+                    let mealText = targetField === 'mealM' ? '朝食' : (targetField === 'mealL' ? '昼食' : (targetField === 'mealD' ? '夕食' : '夜勤者'));
+                    let applyValue = targetField === 'nightStaff' ? this.batchConfig.textValue : this.batchConfig.value;
+
+                    if (confirm(`${this.currentMonth}月${this.batchConfig.day}日の【${unitText}】の【${mealText}】を「${applyValue || '空欄'}」に一括変更します。\nよろしいですか？`)) {
+                        targetUsers.forEach(u => {
+                            let rec = this.getRecordForUser(u.id, targetDateStr);
+                            rec[targetField] = applyValue;
+                        });
+                        this.showBatchModal = false;
+                        this.triggerAutoSave();
+                    }
+                },
+                getShuroDaysText(days) {
+                    if (!days || days.length === 0) return 'なし';
+                    if (days.length === 5 && days.includes(1) && days.includes(2) && days.includes(3) && days.includes(4) && days.includes(5)) return '平日';
+                    const names = ['日', '月', '火', '水', '木', '金', '土'];
+                    const sortedDays = days.slice().sort((a, b) => {
+                        let sa = a === 0 ? 7 : a;
+                        let sb = b === 0 ? 7 : b;
+                        return sa - sb;
+                    });
+                    return sortedDays.map(d => names[d]).join('・');
+                },
+                getHalfLabel(daySubset) {
+                    // 印刷ページ見出しの期間表記を、実際に載っている日付から組み立てる
+                    if (!daySubset || daySubset.length === 0) return '';
+                    const firstDay = daySubset[0].d;
+                    const lastDay = daySubset[daySubset.length - 1].d;
+                    const monthLastDay = this.days.length > 0 ? this.days[this.days.length - 1].d : lastDay;
+                    return `${firstDay}～${lastDay === monthLastDay ? '末' : lastDay}日`;
+                },
+                getCommonNightStaff(dateStr) {
+                    for (const user of this.users) {
+                        const rec = this.records[`${user.id}_${dateStr}`];
+                        if (rec && rec.nightStaff && rec.nightStaff.trim() !== '') {
+                            return rec.nightStaff;
+                        }
+                    }
+                    return '';
+                },
+                getPageFootnotes(chunk, daySubset) {
+                    let footnotes = [];
+                    for (let u of chunk) {
+                        for (let d of daySubset) {
+                            let rec = this.getRecordForUser(u.id, d.date);
+                            let rem = rec.remarks ? String(rec.remarks) : '';
+                            if (rem.length > 3 || rem.includes('\n')) {
+                                footnotes.push({
+                                    userId: u.id,
+                                    date: d.date,
+                                    display: `${d.d}日(${u.name}) ${rem.replace(/\n/g, ' ')}`
+                                });
+                            }
+                        }
+                    }
+                    return footnotes;
+                },
+                getCellRemarkDisplay(userId, date, chunk, daySubset) {
+                    let rec = this.getRecordForUser(userId, date);
+                    let rem = rec.remarks ? String(rec.remarks) : '';
+                    if (rem.length <= 3 && !rem.includes('\n')) return rem;
+                    
+                    let footnotes = this.getPageFootnotes(chunk, daySubset);
+                    let index = footnotes.findIndex(f => f.userId === userId && f.date === date);
+                    if (index !== -1) return `※${index + 1}`;
+                    return rem;
+                },
+                getRecordForUser(userId, dateStr) {
+                    const key = `${userId}_${dateStr}`;
+                    if (!this.records[key]) {
+                        // Init new record structure
+                        this.records[key] = {
+                            nyusho: '',
+                            nicchu: '',
+                            mealM: '',
+                            mealL: '',
+                            mealD: '',
+                            remarks: '',
+                            nightStaff: ''
+                        };
+                    }
+                    return this.records[key];
+                },
+                getRecord(dateStr) {
+                    if (!this.selectedUserId) return {};
+                    return this.getRecordForUser(this.selectedUserId, dateStr);
+                },
+                changeMonth(delta) {
+                    let d = new Date(this.currentYear, this.currentMonth - 1 + delta, 1);
+                    this.currentYear = d.getFullYear();
+                    this.currentMonth = d.getMonth() + 1;
+                },
+                getHeaderDayClass(day) {
+                    if (!day.isOperation) return 'holiday-header';
+                    if (day.isSaturday) return 'saturday-header';
+                    return 'bg-gray-100';
+                },
+                getCellDayClass(day) {
+                    if (!day.isOperation) return 'holiday-cell';
+                    if (day.isSaturday) return 'saturday-cell';
+                    return 'bg-white';
+                },
+                toggleOperationDay(dateStr) {
+                    const day = this.days.find(d => d.date === dateStr);
+                    if (day) {
+                        const newIsOperation = !day.isOperation;
+                        this.customOperationDays[dateStr] = newIsOperation;
+
+                        const patternName = newIsOperation ? '稼働日' : '非稼働日';
+                        const patternDesc = newIsOperation ? '入所:○, 日中:○, 朝/夕:◎, 昼:●' : '入所:○, 日中:×, 食事3食:◎';
+
+                        setTimeout(() => {
+                            if (confirm(`【${day.d}日 (${day.w})】を「${patternName}」に変更しました。\n\nこの日の全員の入力をすべて新しい基本パターン（${patternName}用）に上書きし直しますか？\n（${patternDesc}）\n\n【要注意】すでにお休み等の記録をしていても、すべてリセット・上書きされます。\n※空欄だけ埋めたい場合は、ここでは「キャンセル」を押し、右上にある全体の一括入力ボタンを使ってください。`)) {
+                                this.users.forEach(user => {
+                                    let rec = this.getRecordForUser(user.id, day.date);
+                                    if (newIsOperation) {
+                                        rec.nyusho = '○';
+                                        rec.nicchu = '○';
+                                        rec.mealM = '◎';
+                                        rec.mealL = (user.isShuroB && user.shuroDays && user.shuroDays.includes(day.dayIndex)) ? '△' : '●';
+                                        rec.mealD = '◎';
+                                    } else {
+                                        rec.nyusho = '○';
+                                        rec.nicchu = '×';
+                                        rec.mealM = '◎';
+                                        rec.mealL = '◎';
+                                        rec.mealD = '◎';
+                                    }
+                                });
+                                this.triggerAutoSave();
+                            }
+                        }, 50);
+                    }
+                },
+                fillOperationDays() {
+                    if (confirm(`【全員】の今月の「稼働日」に、基本パターンを一括入力しますか？\n（入所:○, 日中:○, 朝/夕:◎, 昼:●）\n※すでに入力済みの空欄でない記録は上書きされません。`)) {
+                        this.users.forEach(user => {
+                            this.days.forEach(day => {
+                                if (day.isOperation) {
+                                    let rec = this.getRecordForUser(user.id, day.date);
+                                    if (!rec.nyusho && !rec.nicchu && !rec.mealM && !rec.mealL && !rec.mealD) {
+                                        rec.nyusho = '○';
+                                        rec.nicchu = '○';
+                                        rec.mealM = '◎';
+                                        rec.mealL = (user.isShuroB && user.shuroDays && user.shuroDays.includes(day.dayIndex)) ? '△' : '●';
+                                        rec.mealD = '◎';
+                                    }
+                                }
+                            });
+                        });
+                        this.triggerAutoSave();
+                    }
+                },
+                fillNonOperationDays() {
+                    if (confirm(`【全員】の今月の「非稼働日」に、基本パターンを一括入力しますか？\n（入所:○, 日中:×, 食事3食:◎）\n※すでに入力済みの空欄でない記録は上書きされません。`)) {
+                        this.users.forEach(user => {
+                            this.days.forEach(day => {
+                                if (!day.isOperation) {
+                                    let rec = this.getRecordForUser(user.id, day.date);
+                                    if (!rec.nyusho && !rec.nicchu && !rec.mealM && !rec.mealL && !rec.mealD) {
+                                        rec.nyusho = '○';
+                                        rec.nicchu = '×';
+                                        rec.mealM = '◎';
+                                        rec.mealL = '◎';
+                                        rec.mealD = '◎';
+                                    }
+                                }
+                            });
+                        });
+                        this.triggerAutoSave();
+                    }
+                },
+                openRangeCrossModal() {
+                    const todayNum = new Date().getDate();
+                    const maxDay = this.days.length;
+                    const initialDay = (todayNum >= 1 && todayNum <= maxDay) ? todayNum : 1;
+                    this.rangeLeaveConfig.start = initialDay;
+                    this.rangeLeaveConfig.end = initialDay;
+                    this.showRangeLeaveModal = true;
+                },
+                executeRangeLeave() {
+                    let { start, end } = this.rangeLeaveConfig;
+                    if (start > end) {
+                        alert("開始日は終了日以前に設定してください。");
+                        return;
+                    }
+                    if (confirm(`${this.selectedUser.name} 様の ${start}日 〜 ${end}日 の期間をすべて「×」（帰省/入院等）で一括入力しますか？\n（入所・日中・食事すべてに×が入ります）`)) {
+                        this.days.forEach(day => {
+                            if (day.d >= start && day.d <= end) {
+                                let rec = this.getRecord(day.date);
+                                rec.nyusho = '×';
+                                rec.nicchu = '×';
+                                rec.mealM = '×';
+                                rec.mealL = '×';
+                                rec.mealD = '×';
+                            }
+                        });
+                        this.showRangeLeaveModal = false;
+                        this.triggerAutoSave();
+                    }
+                },
+                clearSelectedUser() {
+                    if (confirm(`${this.selectedUser.name} 様の今月の入力をすべてクリアしますか？`)) {
+                        this.days.forEach(day => {
+                            let rec = this.getRecord(day.date);
+                            rec.nyusho = ''; rec.nicchu = '';
+                            rec.mealM = ''; rec.mealL = ''; rec.mealD = '';
+                            rec.remarks = '';
+                        });
+                        this.triggerAutoSave();
+                    }
+                },
+                printAll() {
+                    window.print();
+                },
+                generatePDF() {
+                    const now = new Date();
+                    this.printDateText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                    this.$nextTick(() => {
+                        window.print();
+                    });
+                },
+                executePrint(period) {
+                    this.printPeriod = period;
+                    this.showPrintModal = false;
+                    const now = new Date();
+                    this.printDateText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    this.$nextTick(() => {
+                        window.print();
+                    });
+                },
+                exportToExcel(period = 'all') {
+                    if (this.filteredUsers.length === 0) {
+                        alert("出力する利用者がいません。");
+                        return;
+                    }
+
+                    let suffix = '';
+                    if (period === 'first') suffix = '_前半(1-15日)';
+                    if (period === 'second') suffix = '_後半(16日-末日)';
+
+                    const targetDays = this.days.filter(day => {
+                        if (period === 'first') return day.d <= 15;
+                        if (period === 'second') return day.d >= 16;
+                        return true;
+                    });
+
+                    const unitName = this.filterUnit === 'all' ? '全員' : this.filterUnit;
+
+                    const wb = XLSX.utils.book_new();
+                    let ws_data = [];
+
+                    // Header title
+                    ws_data.push([`${this.currentYear}年${this.currentMonth}月 サービスチェック表 (${unitName})${suffix}`]);
+                    ws_data.push([]);
+
+                    // Header row 1 (Dates)
+                    let header1 = ["利用者名 / 項目"];
+                    targetDays.forEach(d => header1.push(`${d.d}日`));
+                    ws_data.push(header1);
+
+                    // Header row 2 (Day of week)
+                    let header2 = [""];
+                    targetDays.forEach(d => header2.push(`(${d.w})`));
+                    ws_data.push(header2);
+
+                    // Loop over each user in the filtered list
+                    this.filteredUsers.forEach(user => {
+                        let userTitle = `${user.number ? '[' + user.number + '] ' : ''}${user.name} 様`;
+                        if (user.unit && user.unit !== '未設定') userTitle += ` (${user.unit})`;
+                        if (user.severeType || user.isSevere) {
+                            const type = user.severeType === '無印' || (!user.severeType && user.isSevere) ? '' : (user.severeType || '');
+                            userTitle += ` [重度${type}]`;
+                        }
+                        if (user.isShuroB) userTitle += ` [就B(${this.getShuroDaysText(user.shuroDays)})]`;
+                        if (user.notes) userTitle += `  ※${user.notes.replace(/\r?\n/g, ' ')}`;
+
+                        ws_data.push([userTitle]);
+
+                        let rowNyusho = ["入所"];
+                        let rowNicchu = ["日中"];
+                        let rowMealM = ["食事(朝)"];
+                        let rowMealL = ["食事(昼)"];
+                        let rowMealD = ["食事(夕)"];
+                        let rowRemarks = ["備考"];
+                        let rowNightStaff = ["夜勤者"];
+
+                        targetDays.forEach(day => {
+                            let rec = this.getRecordForUser(user.id, day.date);
+                            rowNyusho.push(rec.nyusho || "");
+                            rowNicchu.push(rec.nicchu || "");
+                            rowMealM.push(rec.mealM || "");
+                            rowMealL.push(rec.mealL || "");
+                            rowMealD.push(rec.mealD || "");
+                            rowRemarks.push(rec.remarks || "");
+                            rowNightStaff.push(rec.nightStaff || "");
+                        });
+
+                        ws_data.push(rowNyusho);
+                        ws_data.push(rowNicchu);
+                        ws_data.push(rowMealM);
+                        ws_data.push(rowMealL);
+                        ws_data.push(rowMealD);
+                        ws_data.push(rowRemarks);
+                        ws_data.push(rowNightStaff);
+                        ws_data.push([]); // Empty row as a separator
+                    });
+
+                    // Global remarks at the bottom
+                    ws_data.push(["全体の連絡事項・備考：", this.currentGlobalRemark || "(なし)"]);
+
+                    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+                    // Set column widths to make it look nicer
+                    // Column A (Items): 25 chars, Dates: 5 chars each
+                    let wscols = [{ wch: 30 }].concat(targetDays.map(() => ({ wch: 5 })));
+                    ws['!cols'] = wscols;
+
+                    // Append worksheet to workbook
+                    XLSX.utils.book_append_sheet(wb, ws, "サービスチェック表");
+
+                    // Generate file and trigger download
+                    const fileName = `サービスチェック表_${this.currentYear}年${this.currentMonth}月_${unitName}${suffix}.xlsx`;
+                    XLSX.writeFile(wb, fileName);
+
+                    this.showExportModal = false;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>
